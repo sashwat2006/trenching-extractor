@@ -1,0 +1,8 @@
+streamlit
+openpyxl
+PyMuPDF
+camelot-py[cv]
+pandas
+fastapi
+uvicorn
+python-multipart
