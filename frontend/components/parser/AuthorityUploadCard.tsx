@@ -67,24 +67,47 @@ export function AuthorityUploadCard({
   ];
 
   // Helper to render a preview table
-  const renderPreviewTable = (data: any[], title: string) => {
+  const renderPreviewTable = (data: any[], title?: string, compactHeaders: boolean = false) => {
     if (!data || data.length === 0) return null;
+    const chopHeader = (header: string) => {
+      if (!compactHeaders) return header;
+      if (header.length > 12) return header.slice(0, 10) + '…';
+      return header;
+    };
     return (
-      <div className="mb-4 bg-gray-800 rounded-lg border border-cyan-700 p-4 overflow-x-auto">
-        <h4 className="text-cyan-300 font-bold mb-2">{title}</h4>
-        <table className="min-w-full text-sm text-left text-gray-200">
+      <div className="w-full overflow-x-auto hide-scrollbar">
+        <table className="min-w-full text-[12px] text-left text-white table-fixed font-inter rounded-lg">
           <thead>
             <tr>
               {Object.keys(data[0] || {}).map((header) => (
-                <th key={header} className="px-3 py-2 bg-cyan-900 text-cyan-200 font-semibold border-b border-cyan-700">{header}</th>
+                <th
+                  key={header}
+                  title={compactHeaders && header.length > 12 ? header : undefined}
+                  className="px-2 py-1 bg-[#232f47] text-white font-medium border-b border-[#232f47] whitespace-normal font-inter tracking-tight rounded-t"
+                  style={{ wordBreak: 'normal', whiteSpace: 'normal', fontSize: '12px', height: '20px', lineHeight: '1.1', letterSpacing: '0em', minWidth: '80px' }}
+                >
+                  {chopHeader(header)}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {data.map((row, i) => (
-              <tr key={i} className="hover:bg-cyan-950/40">
+              <tr
+                key={i}
+                className={
+                  (i % 2 === 0 ? "bg-[#232f47]/40" : "bg-[#181e29]/40") +
+                  " hover:bg-[#232f47]/60 transition-colors"
+                }
+              >
                 {Object.values(row).map((val, j) => (
-                  <td key={j} className="px-3 py-2 border-b border-cyan-800">{String(val)}</td>
+                  <td
+                    key={j}
+                    className="px-2 py-1 border-b border-[#232f47] whitespace-normal font-inter align-top text-white"
+                    style={{ wordBreak: 'normal', whiteSpace: 'normal', fontSize: '12px', height: '18px', lineHeight: '1.2' }}
+                  >
+                    {String(val)}
+                  </td>
                 ))}
               </tr>
             ))}
@@ -92,6 +115,33 @@ export function AuthorityUploadCard({
         </table>
       </div>
     );
+  };
+
+  // --- LIVE PREVIEW LOGIC ---
+  // For live preview, merge manual fields into preview rows if available
+  const getLivePreviewNonRefund = () => {
+    if (!previewNonRefund || previewNonRefund.length === 0) return [];
+    return previewNonRefund.map((row) => {
+      let updated = { ...row };
+      blueHeadersNonRefund.forEach((field) => {
+        if (manualFieldsNonRefund[field] !== undefined && manualFieldsNonRefund[field] !== "") {
+          updated[field] = manualFieldsNonRefund[field];
+        }
+      });
+      return updated;
+    });
+  };
+  const getLivePreviewSD = () => {
+    if (!previewSD || previewSD.length === 0) return [];
+    return previewSD.map((row) => {
+      let updated = { ...row };
+      blueHeadersSD.forEach((field) => {
+        if (manualFieldsSD[field] !== undefined && manualFieldsSD[field] !== "") {
+          updated[field] = manualFieldsSD[field];
+        }
+      });
+      return updated;
+    });
   };
 
   // Fetch preview from backend
@@ -168,7 +218,7 @@ export function AuthorityUploadCard({
   return (
     <Card className="border border-gray-800 bg-gray-900">
       <CardHeader>
-        <CardTitle className="flex items-center gap-3 text-white">
+        <CardTitle className="flex items-center gap-3 text-white font-inter font-semibold tracking-tight text-lg">
           <div className={`w-3 h-3 rounded-full ${authority.color}`} />
           {authority.fullName}
         </CardTitle>
@@ -225,84 +275,102 @@ export function AuthorityUploadCard({
               </Button>
             )}
             {showManualFieldsState && (
-              <>
-                {/* Non-Refundable Manual Fields */}
-                <div className="mb-4 p-4 bg-gray-800 rounded-lg border border-cyan-700">
-                  <h4 className="text-cyan-300 font-bold mb-2">Non-Refundable Output Manual Fields</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {blueHeadersNonRefund.map((field) => (
-                      <div key={field} className="flex flex-col gap-1">
-                        <label className="text-xs text-cyan-300 font-semibold">{field}</label>
-                        <UITextInput
-                          value={manualFieldsNonRefund[field] || ""}
-                          onChange={(e) => handleManualFieldChangeNonRefund(field, e.target.value)}
-                          placeholder={`Enter ${field}`}
-                          className="bg-gray-900 border-cyan-500 text-white"
-                        />
-                      </div>
-                    ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                {/* Manual Fields (left column) */}
+                <div className="flex flex-col gap-8">
+                  {/* Non-Refundable Manual Fields */}
+                  <div className="p-4 bg-gray-800 rounded-xl border border-[#232f47] h-[500px] flex flex-col">
+                    <h4 className="text-white font-semibold mb-2 font-inter tracking-tight text-base">Non-Refundable Output Manual Fields</h4>
+                    <div className="grid grid-cols-2 gap-4 flex-1">
+                      {blueHeadersNonRefund.map((field) => (
+                        <div key={field} className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-white mb-1 capitalize font-inter">{field}</label>
+                          <UITextInput
+                            value={manualFieldsNonRefund[field] || ""}
+                            onChange={(e) => handleManualFieldChangeNonRefund(field, e.target.value)}
+                            className="rounded-md border border-[#2c3e50] bg-[#0f1a2b] hover:border-neutral-500 focus:border-neutral-400 text-sm text-white px-4 py-2 shadow-sm transition-all font-inter font-normal"
+                            autoComplete="off"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex-shrink-0 mt-2 flex items-end">
+                      <Button
+                        onClick={handleDownloadNonRefund}
+                        disabled={isProcessing}
+                        className="w-full h-12 bg-[#22272e] hover:bg-[#31363c] text-white font-inter font-semibold tracking-tight shadow-sm transition-all border-0"
+                      >
+                        {isProcessing ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Download Non-Refundable Excel
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <Button
-                    onClick={handleDownloadNonRefund}
-                    disabled={isProcessing}
-                    className="w-full h-12 mt-4 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 border-0"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Download Non-Refundable Excel
-                      </>
-                    )}
-                  </Button>
-                </div>
-                {/* Non-Refundable Preview Table */}
-                {isParsing ? (
-                  <div className="text-center text-cyan-300 py-4">Loading preview...</div>
-                ) : renderPreviewTable(previewNonRefund || [], "Non-Refundable Output Preview")}
-                {/* SD Manual Fields */}
-                <div className="p-4 bg-gray-800 rounded-lg border border-cyan-700">
-                  <h4 className="text-cyan-300 font-bold mb-2">SD Output Manual Fields</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {blueHeadersSD.map((field) => (
-                      <div key={field} className="flex flex-col gap-1">
-                        <label className="text-xs text-cyan-300 font-semibold">{field}</label>
-                        <UITextInput
-                          value={manualFieldsSD[field] || ""}
-                          onChange={(e) => handleManualFieldChangeSD(field, e.target.value)}
-                          placeholder={`Enter ${field}`}
-                          className="bg-gray-900 border-cyan-500 text-white"
-                        />
-                      </div>
-                    ))}
+                  {/* SD Manual Fields */}
+                  <div className="p-4 bg-gray-800 rounded-xl border border-[#232f47] h-[280px] flex flex-col justify-between">
+                    <h4 className="text-white font-semibold mb-2 font-inter tracking-tight text-base">SD Output Manual Fields</h4>
+                    <div className="grid grid-cols-2 gap-4 flex-1">
+                      {blueHeadersSD.map((field) => (
+                        <div key={field} className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-white mb-1 capitalize font-inter">{field}</label>
+                          <UITextInput
+                            value={manualFieldsSD[field] || ""}
+                            onChange={(e) => handleManualFieldChangeSD(field, e.target.value)}
+                            className="rounded-md border border-[#2c3e50] bg-[#0f1a2b] hover:border-neutral-500 focus:border-neutral-400 text-sm text-white px-4 py-2 shadow-sm transition-all font-inter font-normal"
+                            autoComplete="off"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex-shrink-0 mt-2 flex items-end">
+                      <Button
+                        onClick={handleDownloadSD}
+                        disabled={isProcessing}
+                        className="w-full h-12 bg-[#22272e] hover:bg-[#31363c] text-white font-inter font-semibold tracking-tight shadow-sm transition-all border-0"
+                      >
+                        {isProcessing ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Download SD Excel
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <Button
-                    onClick={handleDownloadSD}
-                    disabled={isProcessing}
-                    className="w-full h-12 mt-4 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 border-0"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Download SD Excel
-                      </>
-                    )}
-                  </Button>
                 </div>
-                {/* SD Preview Table */}
-                {isParsing ? (
-                  <div className="text-center text-cyan-300 py-4">Loading preview...</div>
-                ) : renderPreviewTable(previewSD || [], "SD Output Preview")}
-              </>
+                {/* Preview Tables (right column, stacked vertically) */}
+                <div className="flex flex-col gap-8 w-full">
+                  <div className="w-full">
+                    <h4 className="text-white font-inter font-bold mb-3 text-lg tracking-tight">Non-Refundable Output Preview</h4>
+                    <div className="bg-[#181e29] rounded-xl border border-[#232f47] p-2 shadow-none h-[240px] min-h-[160px] max-h-none overflow-visible">
+                      {isParsing ? (
+                        <div className="text-center text-cyan-300 py-4 min-h-[80px]">Loading preview...</div>
+                      ) : renderPreviewTable(getLivePreviewNonRefund(), undefined, true)}
+                    </div>
+                  </div>
+                  <div className="w-full">
+                    <h4 className="text-white font-inter font-bold mb-3 text-lg tracking-tight">SD Output Preview</h4>
+                    <div className="bg-[#181e29] rounded-xl border border-[#232f47] p-2 shadow-none h-[240px] min-h-[160px] max-h-none overflow-visible">
+                      {isParsing ? (
+                        <div className="text-center text-cyan-300 py-4 min-h-[80px]">Loading preview...</div>
+                      ) : renderPreviewTable(getLivePreviewSD(), undefined)}
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </>
         )}
