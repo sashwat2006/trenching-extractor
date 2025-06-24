@@ -11,11 +11,10 @@ interface ProcessingStatusCardProps {
 
 export function ProcessingStatusCard({ authority, status, progress }: ProcessingStatusCardProps) {
   return (
-    <Card className="border border-gray-800 bg-gray-900">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-3 text-white">
-          <Loader2 className="h-5 w-5 animate-spin text-cyan-500" />
-          Processing {authority.name} Documents
+    <Card className="border border-[#232f47] bg-[#181e29]">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-2xl font-semibold text-white font-inter">
+          {authority.name} Municipality DN Extraction
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -24,7 +23,7 @@ export function ProcessingStatusCard({ authority, status, progress }: Processing
             <span>{status}</span>
             <span className="font-medium">{Math.round(progress)}%</span>
           </div>
-          <Progress value={progress} className="w-full h-2 bg-gray-800" />
+          <Progress value={progress} className="w-full h-2 bg-[#232f47]" />
         </div>
       </CardContent>
     </Card>

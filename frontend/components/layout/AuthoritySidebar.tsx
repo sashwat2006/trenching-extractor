@@ -1,0 +1,64 @@
+import { authorities } from "@/constants/authorities";
+import { Home, Building2, Landmark, Factory, Settings, Waves, ChevronLeft, ChevronRight } from "lucide-react";
+import React, { useState } from "react";
+
+const authorityIcons: Record<string, React.ReactNode> = {
+  kdmc: <Landmark className="h-5 w-5" />,
+  mbmc: <Building2 className="h-5 w-5" />,
+  mcgm: <Home className="h-5 w-5" />,
+  "midc-type1": <Factory className="h-5 w-5" />,
+  "midc-type2": <Settings className="h-5 w-5" />,
+  nmmc: <Waves className="h-5 w-5" />,
+};
+
+export function AuthoritySidebar({ selected, onSelect }: { selected: string; onSelect: (id: string) => void }) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  return (    <aside 
+      className={`h-screen bg-[#1d2636] flex flex-col py-6 transition-all duration-300 border-r border-[#232f47] fixed top-0 left-0 z-40 ${
+        isCollapsed ? "w-20" : "w-64"
+      }`}
+    >
+      <div className={`mb-6 flex items-center ${isCollapsed ? "justify-center px-2" : "justify-between px-4"}`}>
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-[#232f47] rounded-lg">
+            <Home className="h-6 w-6 text-white" />
+          </div>
+          {!isCollapsed && (
+            <div>
+              <div className="text-lg font-bold text-white font-inter">CloudExtel</div>
+              <div className="text-xs text-gray-400 font-inter"> DN Parser</div>
+            </div>
+          )}
+        </div>
+        <button 
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#232f47]/60 transition-colors"
+          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+        </button>
+      </div>
+      
+      {!isCollapsed && (
+        <div className="uppercase text-xs text-gray-400 font-semibold tracking-widest mb-2 px-4">
+          Authorities
+        </div>
+      )}
+        <nav className="flex-1 flex flex-col gap-1 px-2">
+        {authorities.map((auth) => (
+          <button
+            key={auth.id}
+            onClick={() => onSelect(auth.id)}
+            className={`flex items-center ${isCollapsed ? "justify-center" : ""} w-full px-3 py-2 rounded-lg font-inter text-sm transition-colors
+              ${selected === auth.id ? "bg-[#232f47] text-white font-semibold" : "text-gray-300 hover:bg-[#232f47]/60"}`}
+            title={isCollapsed ? auth.name : ""}
+          >
+            {authorityIcons[auth.id] || <Landmark className="h-5 w-5" />}
+            {!isCollapsed && <span className="ml-2">{auth.name}</span>}
+          </button>
+        ))}
+      </nav>
+    </aside>
+  );
+}

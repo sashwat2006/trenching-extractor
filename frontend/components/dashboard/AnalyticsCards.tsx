@@ -9,43 +9,43 @@ interface AnalyticsCardsProps {
 export function AnalyticsCards({ analytics }: AnalyticsCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <Card className="bg-gradient-to-br from-cyan-500 to-cyan-600 text-white border-0 shadow-lg">
+      <Card className="bg-[#1a2942] text-white border border-[#28354e] shadow-md">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-cyan-100 text-sm font-medium">Total Processed</p>
+              <p className="text-gray-300 text-sm font-medium">Total Processed</p>
               <p className="text-3xl font-bold mt-1">{analytics.totalProcessed.toLocaleString()}</p>
             </div>
-            <div className="p-3 bg-white/20 rounded-xl">
-              <Database className="h-6 w-6 text-white" />
+            <div className="p-3 bg-[#28354e] rounded-xl">
+              <Database className="h-6 w-6 text-[#6b8cbc]" />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0 shadow-lg">
+      <Card className="bg-[#1a2942] text-white border border-[#28354e] shadow-md">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-sm font-medium">Avg Processing</p>
+              <p className="text-gray-300 text-sm font-medium">Avg Processing</p>
               <p className="text-3xl font-bold mt-1">{analytics.avgProcessingTime}s</p>
             </div>
-            <div className="p-3 bg-white/20 rounded-xl">
-              <Zap className="h-6 w-6 text-white" />
+            <div className="p-3 bg-[#28354e] rounded-xl">
+              <Zap className="h-6 w-6 text-[#6b8cbc]" />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-lg">
+      <Card className="bg-[#1a2942] text-white border border-[#28354e] shadow-md">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-sm font-medium">Active Authorities</p>
+              <p className="text-gray-300 text-sm font-medium">Active Authorities</p>
               <p className="text-3xl font-bold mt-1">{analytics.activeAuthorities}</p>
             </div>
-            <div className="p-3 bg-white/20 rounded-xl">
-              <Activity className="h-6 w-6 text-white" />
+            <div className="p-3 bg-[#28354e] rounded-xl">
+              <Activity className="h-6 w-6 text-[#6b8cbc]" />
             </div>
           </div>
         </CardContent>

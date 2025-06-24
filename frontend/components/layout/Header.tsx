@@ -11,28 +11,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Cloud, LogOut, Settings, Sparkles } from "lucide-react"
+import { Cloud, LogOut, Settings, Sparkles, ChevronRight } from "lucide-react"
 import type { User, Analytics } from "@/types"
 
 interface HeaderProps {
   user: User
   analytics: Analytics
+  pageTitle?: string
   onLogout: () => void
 }
 
-export function Header({ user, analytics, onLogout }: HeaderProps) {
+export function Header({ user, analytics, pageTitle = "Master Dashboard", onLogout }: HeaderProps) {
   return (
     <header className="border-b border-[#232f47] bg-[#181e29]/90 backdrop-blur-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <div className="flex items-center space-x-4 pl-6">
-            <div className="flex items-center space-x-3">
-              <div className="p-1.5 bg-[#232f47] rounded-lg">
-                <Cloud className="h-6 w-6 text-white" />
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center">
+              <div className="flex items-center">
+                <span className="text-white font-inter font-medium">Cloud Extel</span>
+                <ChevronRight className="h-4 w-4 mx-1 text-gray-400" />
+                <span className="text-white font-inter">{pageTitle}</span>
               </div>
-              <span className="text-xl font-bold text-white font-inter tracking-tight">
-                CloudExtel
-              </span>
             </div>
             <Badge
               variant="secondary"
@@ -50,7 +50,7 @@ export function Header({ user, analytics, onLogout }: HeaderProps) {
                 <span>{analytics.totalProcessed} Processed</span>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-[#3b82f6] rounded-full"></div>
+                <div className="w-2 h-2 bg-[#ee3954] rounded-full"></div>
                 <span>{analytics.avgProcessingTime}s Avg</span>
               </div>
             </div>

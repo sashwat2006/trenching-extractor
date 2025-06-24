@@ -119,16 +119,19 @@ function getFilenameFromDisposition(disposition: string | null, fallback: string
 export const processNonRefundableWithBackend = async ({
   authority,
   file,
-  manualFields
+  manualFields,
+  previewId,
 }: {
   authority: string;
   file: File;
   manualFields: Record<string, any>;
+  previewId?: string | null;
 }) => {
   const formData = new FormData();
   formData.append("authority", authority);
   formData.append("file", file);
   formData.append("manual_fields", JSON.stringify(manualFields || {}));
+  if (previewId) formData.append("preview_id", previewId);
 
   const response = await fetch("http://localhost:8000/process/non_refundable", {
     method: "POST",
@@ -157,16 +160,19 @@ export const processNonRefundableWithBackend = async ({
 export const processSDWithBackend = async ({
   authority,
   file,
-  manualFields
+  manualFields,
+  previewId,
 }: {
   authority: string;
   file: File;
   manualFields: Record<string, any>;
+  previewId?: string | null;
 }) => {
   const formData = new FormData();
   formData.append("authority", authority);
   formData.append("file", file);
   formData.append("sd_manual_fields", JSON.stringify(manualFields || {}));
+  if (previewId) formData.append("preview_id", previewId);
 
   const response = await fetch("http://localhost:8000/process/sd", {
     method: "POST",
