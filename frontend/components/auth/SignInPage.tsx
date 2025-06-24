@@ -2,25 +2,39 @@
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowRight, Brain, Cloud, Loader2, Lock, Shield, Sparkles } from "lucide-react"
+import { ArrowRight, Brain, Loader2, Lock, Shield, Sparkles } from "lucide-react"
+import { useState } from "react"
+import { useMsal } from "@azure/msal-react"
+import { loginRequest } from "../../msalConfig"
+import Image from "next/image"
 
-interface SignInPageProps {
-  isLoggingIn: boolean
-  onLogin: () => void
-}
+export function SignInPage() {
+  const { instance, inProgress } = useMsal();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-export function SignInPage({ isLoggingIn, onLogin }: SignInPageProps) {
+  const onLogin = async () => {
+    setIsLoggingIn(true);
+    try {
+      await instance.loginPopup(loginRequest);
+      // Optionally, you can fetch user info here or redirect
+      // window.location.reload(); // To refresh app state after login
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Login failed", err);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black flex">
       {/* Left Side - Hero Content */}
       <div className="flex-1 flex flex-col justify-center px-8 lg:px-16 xl:px-24">
         <div className="max-w-lg">
-          <div className="flex items-center space-x-3 mb-8">
-            <div className="p-2 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-xl">
-              <Cloud className="h-8 w-8 text-white" />
-            </div>
+          <div className="flex items-center space-x-4 mb-8">
+            <Image src="/cloudextel_logo.png" alt="CloudExtel Logo" width={56} height={56} className="h-14 w-14 object-contain" />
             <span className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-              Cloud_Extel
+              CloudExtel
             </span>
           </div>
 
@@ -76,11 +90,11 @@ export function SignInPage({ isLoggingIn, onLogin }: SignInPageProps) {
           <CardContent className="space-y-6">
             <Button
               onClick={onLogin}
-              disabled={isLoggingIn}
+              disabled={isLoggingIn || inProgress === "login"}
               className="w-full h-12 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200 border-0"
               size="lg"
             >
-              {isLoggingIn ? (
+              {isLoggingIn || inProgress === "login" ? (
                 <>
                   <Loader2 className="h-5 w-5 mr-3 animate-spin" />
                   Signing in...

@@ -7,10 +7,12 @@ import { Input as UITextInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Loader2, Sparkles } from "lucide-react";
+import { FiMail } from "react-icons/fi";
 import type { AuthorityConfig } from "@/types";
 // Update the import to match the actual exports from useFileProcessing
 import { processNonRefundableWithBackend, processSDWithBackend } from "@/hooks/useFileProcessing";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import GenerateEmailDraftModal from "@/components/email/GenerateEmailDraftModal";
 
 interface AuthorityUploadCardProps {
   authority: AuthorityConfig;
@@ -80,6 +82,7 @@ const [previewIdSD, setPreviewIdSD] = useState<string | null>(null);
 // State to track if parsing is in progress or done
 const [parsingDone, setParsingDone] = useState(false);
 const [parsingStarted, setParsingStarted] = useState(false);
+const [showEmailModal, setShowEmailModal] = useState(false);
 
 // Patch: Reset parsing state only when a new file is uploaded
 useEffect(() => {
@@ -282,6 +285,20 @@ const handleDownloadSD = async () => {
     alert("Processing failed: " + err);
   }
 };
+const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  onFileUpload(event);
+  setManualFieldsNonRefund({});
+  setManualFieldsSD({});
+  setShowManualFieldsState(false);
+  setParsedFile(null);
+  setIsParsing(false);
+  setPreviewNonRefund(null);
+  setPreviewSD(null);
+  setPreviewIdNonRefund(null);
+  setPreviewIdSD(null);
+  setParsingDone(false);
+  setParsingStarted(false);
+};
 
 // Debug helper to visualize data structure
 const debugShowDataStructure = (obj: any) => {
@@ -310,28 +327,41 @@ const isImplemented = implementedAuthorities.includes(authority.id);
 // Simulated progress bar for parsing (React/Next.js example)
 function SimulatedProgressBar({ parsingDone, parsingStarted }: { parsingDone: boolean, parsingStarted: boolean }) {
   const [progress, setProgress] = useState(0);
+  const [show, setShow] = useState(false);
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
+    let finishTimer: NodeJS.Timeout | null = null;
     if (parsingStarted && !parsingDone) {
+      setShow(true);
       setProgress(0);
       timer = setInterval(() => {
         setProgress((old) => {
-          if (old < 99) return old + Math.random() * 0.8 + 0.2;
+          if (old < 99) return Math.min(old + Math.random() * 0.8 + 0.2, 99);
           return old;
         });
       }, 420);
-    } else {
+    } else if (parsingStarted && parsingDone) {
+      // Animate to 100% if not already there
       setProgress(100);
+      setShow(true);
+      // Wait a bit before hiding the bar for a smooth finish
+      finishTimer = setTimeout(() => {
+        setShow(false);
+      }, 500); // 0.5s after reaching 100%
+    } else {
+      setShow(false);
+      setProgress(0);
     }
     return () => {
       if (timer) clearInterval(timer);
+      if (finishTimer) clearTimeout(finishTimer);
     };
   }, [parsingStarted, parsingDone]);
 
-  if (!parsingStarted || parsingDone || progress === 100) return null;
+  if (!show) return null;
   return (
-    <div style={{ width: '100%', margin: '16px 0' }}>
+    <div style={{ width: '100%', margin: '16px 0', transition: 'opacity 0.3s' }}>
       <div style={{
         height: 12,
         background: '#232f47',
@@ -385,7 +415,7 @@ return (
               id={`file-upload-${authority.id}`}
               type="file"
               accept=".pdf"
-              onChange={onFileUpload}
+              onChange={handleFileUpload}
               className="hidden"
               disabled={!isImplemented}
             />
@@ -398,9 +428,10 @@ return (
             <Button
               onClick={handleParseFile}
               disabled={isParsing}
-              className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+              className="w-full mt-4 bg-white hover:bg-gray-100 text-[#181e29] font-inter font-semibold flex items-center justify-center gap-2 rounded-lg border border-[#232f47] shadow-none text-base px-6 py-3 transition-colors"
+              style={{ boxShadow: "none" }}
             >
-              {isParsing ? <Loader2 className="animate-spin h-5 w-5 mr-2 inline-block" /> : null}
+              {isParsing ? <Loader2 className="animate-spin h-5 w-5 mr-2 text-black" /> : <FileText className="h-5 w-5 mr-2 text-black" />}
               Parse File
             </Button>
           )}
@@ -568,6 +599,33 @@ return (
                       </div>
                     )}
                   </div>
+                  {/* Generate Email Draft Button */}
+                  {previewNonRefund && previewNonRefund.length > 0 && (
+                    <div className="flex mt-4">
+                      <Button
+                        className="w-full bg-white hover:bg-gray-100 text-[#1d2636] font-inter font-semibold tracking-tight text-[15px] rounded-lg border border-[#232f47] flex items-center gap-2 shadow-sm px-4 py-2.5 transition-colors justify-center"
+                        onClick={() => setShowEmailModal(true)}
+                      >
+                        <FiMail className="text-black text-lg" />
+                        Generate Email Draft
+                      </Button>
+                    </div>
+                  )}
+                  <GenerateEmailDraftModal
+                    open={showEmailModal}
+                    onClose={() => setShowEmailModal(false)}
+                    defaultSubject={(() => {
+                      if (!previewNonRefund || previewNonRefund.length === 0) return "";
+                      const row = previewNonRefund[0];
+                      return `Request Payment for Demand Note: ${row["Demand Note Reference number"] || ""}`;
+                    })()}
+                    defaultBody={(() => {
+                      if (!previewNonRefund || previewNonRefund.length === 0) return "";
+                      const row = previewNonRefund[0];
+                      return `Hello, I hope you're doing well. I'm writing to request payment for Demand Note: ${row["Demand Note Reference number"] || ""} from ${authority.fullName}.`;
+                    })()}
+                    summaryRow={previewNonRefund && previewNonRefund.length > 0 ? previewNonRefund[0] : {}}
+                  />
                 </div>
               </div>
             </div>

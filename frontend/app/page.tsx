@@ -27,15 +27,18 @@ export default function CloudExtelParser() {
   const selectedAuthority = authorities.find(a => a.id === activeAuthority);
 
   if (!isAuthenticated) {
-    return <SignInPage isLoggingIn={isLoggingIn} onLogin={handleMicrosoftLogin} />
+    return <SignInPage />
   }
+
+  // Ensure user is not null and name is always a string
+  const safeUser = user ? { ...user, name: user.name || user.email || "" } : undefined;
 
   return (
     <div className="min-h-screen bg-blue flex">
       <AuthoritySidebar selected={activeAuthority} onSelect={setActiveAuthority} />
       <div className="flex-1 transition-all duration-300 sidebar-margin">
         <Header 
-          user={user!} 
+          user={safeUser!} 
           analytics={analytics} 
           pageTitle={selectedAuthority ? selectedAuthority.name : "Master Dashboard"} 
           onLogout={handleLogout} 
