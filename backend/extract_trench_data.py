@@ -1,11 +1,12 @@
-# Only keep Excel writing and file handling logic here. All MCGM Type 1-specific logic is now in parsers/mcgm_type1.py
+# Only keep Excel writing and file handling logic here. All parser-specific logic is now in their respective files
 from parsers.mcgm import (
-    non_refundable_request_parser, sd_parser, HEADERS, STATIC_VALUES,
-    extract_demand_note_reference, extract_section_length, extract_gst_amount, extract_gst_amount_from_text,
-    extract_sd_amount, extract_sd_amount_from_text, extract_row_application_date, extract_demand_note_date,
-    extract_difference_days, extract_total_dn_amount, extract_road_types, extract_rate_in_rs,
-    extract_road_types_from_tables, extract_rate_in_rs_from_tables, extract_section_length_from_tables,
-    extract_covered_under_capping, extract_not_part_of_capping
+    non_refundable_request_parser as mcgm_non_refundable_parser, 
+    sd_parser as mcgm_sd_parser, 
+    HEADERS, STATIC_VALUES
+)
+from parsers.mbmc import (
+    non_refundable_request_parser as mbmc_non_refundable_parser,
+    sd_parser as mbmc_sd_parser
 )
 import openpyxl
 import re
@@ -23,14 +24,13 @@ def append_row_to_excel(excel_path, row, headers, manual_fields=None, blue_heade
     ws.append(headers)
     ws.append(row)
     # Style (generic, no MCGM-specific logic)
-    header_font = Font(name='Calibri', size=10, bold=True)
-    data_font = Font(name='Calibri', size=10)
-    header_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+    header_font = Font(name='Calibri', size=11, bold=True)  # Calibri 11, bold
+    data_font = Font(name='Calibri', size=11)  # Calibri 11
+    header_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")  # Yellow
     blue_fill = PatternFill(start_color="B7E1FA", end_color="B7E1FA", fill_type="solid")  # Light blue
     center_wrap = Alignment(horizontal="center", vertical="center", wrap_text=True)
     thin = Side(border_style="thin", color="000000")
     border = Border(top=thin, left=thin, right=thin, bottom=thin)
-    # Use blue_headers for blue highlight (manual columns)
     blue_headers_set = set(blue_headers or [])
     # Header row
     for col in range(1, len(headers) + 1):
@@ -73,9 +73,19 @@ def process_demand_note(uploaded_file_path, authority, manual_values=None, sd_ma
     blue_headers_sd = [
         "Execution Partner GBPA PO No.", "Partner PO circle", "Unique route id", "NFA no."
     ]
+    # Define blue/manual headers for MBMC (fill this list as needed)
+    blue_headers_non_ref_mbmc = [
+        "LM/BB/FTTH", "GO RATE", "Total Route (MTR)", "Not part of capping (License Fee/Rental Payment /Way Leave charges etc.)",
+        "REASON FOR DELAY (>2 DAYS)", "PO No.", "Route Name(As per CWIP)", "Section Name for ROW(As per CWIP)"
+        # Add more MBMC manual headers here as needed
+    ]
+    blue_headers_sd_mbmc = [
+        "Execution Partner GBPA PO No.", "Partner PO circle", "Unique route id", "NFA no."
+        # Add more MBMC SD manual headers here as needed
+    ]
     # Non-refundable output
     if authority.upper() == "MCGM":
-        row = non_refundable_request_parser(tmp_pdf_path, manual_values=manual_values)
+        row = mcgm_non_refundable_parser(tmp_pdf_path, manual_values=manual_values)
         print(f"[DEBUG] [excel] Writing row to Non-Refundable Excel: {row}")
         # Re-extract demand note number after manual fields are applied
         try:
@@ -84,8 +94,16 @@ def process_demand_note(uploaded_file_path, authority, manual_values=None, sd_ma
             demand_note_number = "UnknownDemandNote"
         if not demand_note_number:
             demand_note_number = "UnknownDemandNote"
-    else:
-        row = non_refundable_request_parser(tmp_pdf_path)
+        safe_demand_note_number = sanitize_filename(demand_note_number)
+        tmp_xlsx_path = os.path.join(os.path.dirname(base), f"{safe_demand_note_number}_Non Refundable Output.xlsx")
+        append_row_to_excel(tmp_xlsx_path, row, HEADERS, manual_fields=manual_values, blue_headers=blue_headers_non_ref)
+        # SD output for MCGM
+        alt_headers, row_alt = mcgm_sd_parser(tmp_pdf_path, manual_values=sd_manual_values)
+        tmp_xlsx_alt_path = os.path.join(os.path.dirname(base), f"{safe_demand_note_number}_SD Output.xlsx")
+        append_row_to_excel(tmp_xlsx_alt_path, row_alt, alt_headers, manual_fields=sd_manual_values, blue_headers=blue_headers_sd)
+        sd_xlsx_alt_path = tmp_xlsx_alt_path
+    elif authority.upper() == "MBMC":
+        row = mbmc_non_refundable_parser(tmp_pdf_path, manual_values=manual_values)
         print(f"[DEBUG] [excel] Writing row to Non-Refundable Excel: {row}")
         try:
             demand_note_number = row[HEADERS.index("Demand Note Reference number")]
@@ -93,18 +111,27 @@ def process_demand_note(uploaded_file_path, authority, manual_values=None, sd_ma
             demand_note_number = "UnknownDemandNote"
         if not demand_note_number:
             demand_note_number = "UnknownDemandNote"
-    print(f"[DEBUG] Demand note number from parsed row: {demand_note_number}")
-    tmp_xlsx_path = os.path.join(os.path.dirname(base), f"{demand_note_number}_Non Refundable Output.xlsx")
-    print(f"[DEBUG] Writing Non-Refundable Excel to: {tmp_xlsx_path}")
-    append_row_to_excel(tmp_xlsx_path, row, HEADERS, manual_fields=manual_values, blue_headers=blue_headers_non_ref if authority.upper()=="MCGM" else None)
-
-    # SD output (only for MCGM)
-    if authority.upper() == "MCGM":
-        alt_headers, row_alt = sd_parser(tmp_pdf_path, manual_values=sd_manual_values)
-        print(f"[DEBUG] [excel] Writing row to SD Excel: {row_alt}")
-        tmp_xlsx_alt_path = os.path.join(os.path.dirname(base), f"{demand_note_number}_SD Output.xlsx")
-        print(f"[DEBUG] Writing SD Excel to: {tmp_xlsx_alt_path}")
-        append_row_to_excel(tmp_xlsx_alt_path, row_alt, alt_headers, manual_fields=sd_manual_values, blue_headers=blue_headers_sd)
+        safe_demand_note_number = sanitize_filename(demand_note_number)
+        tmp_xlsx_path = os.path.join(os.path.dirname(base), f"{safe_demand_note_number}_Non Refundable Output.xlsx")
+        append_row_to_excel(tmp_xlsx_path, row, HEADERS, manual_fields=manual_values, blue_headers=blue_headers_non_ref_mbmc)
+        # SD output for MBMC
+        alt_headers, row_alt = mbmc_sd_parser(tmp_pdf_path, manual_values=sd_manual_values)
+        tmp_xlsx_alt_path = os.path.join(os.path.dirname(base), f"{safe_demand_note_number}_SD Output.xlsx")
+        append_row_to_excel(tmp_xlsx_alt_path, row_alt, alt_headers, manual_fields=sd_manual_values, blue_headers=blue_headers_sd_mbmc)
+        sd_xlsx_alt_path = tmp_xlsx_alt_path
+    else:
+        row = mcgm_non_refundable_parser(tmp_pdf_path)
+        print(f"[DEBUG] [excel] Writing row to Non-Refundable Excel: {row}")
+        try:
+            demand_note_number = row[HEADERS.index("Demand Note Reference number")]
+        except Exception:
+            demand_note_number = "UnknownDemandNote"
+        if not demand_note_number:
+            demand_note_number = "UnknownDemandNote"
+        safe_demand_note_number = sanitize_filename(demand_note_number)
+        tmp_xlsx_path = os.path.join(os.path.dirname(base), f"{safe_demand_note_number}_Non Refundable Output.xlsx")
+        append_row_to_excel(tmp_xlsx_path, row, HEADERS, manual_fields=manual_values, blue_headers=blue_headers_non_ref)
+        sd_xlsx_alt_path = None
     # Check if majority of dynamic fields are blank (only those present in HEADERS)
     dynamic_fields = [
         "Demand Note Reference number",
@@ -125,12 +152,15 @@ def process_demand_note(uploaded_file_path, authority, manual_values=None, sd_ma
     present_fields = [f for f in dynamic_fields if f in HEADERS]
     blank_count = sum(1 for f in present_fields if row[HEADERS.index(f)] == "" or row[HEADERS.index(f)] is None)
     majority_blank = blank_count >= (len(present_fields) // 2 + 1)
-
     if return_paths:
-        print(f"[DEBUG] Returning paths: Non-Refundable: {tmp_xlsx_path}, SD: {tmp_xlsx_alt_path}")
-        return tmp_xlsx_path, tmp_xlsx_alt_path, demand_note_number
+        print(f"[DEBUG] Returning paths: Non-Refundable: {tmp_xlsx_path}, SD: {sd_xlsx_alt_path}")
+        return tmp_xlsx_path, sd_xlsx_alt_path, demand_note_number
     # Default: return the Non-Refundable Excel file as bytes (for FastAPI StreamingResponse)
     with open(tmp_xlsx_path, "rb") as f:
         excel_bytes = f.read()
     # Return both the bytes and the filename for FastAPI to use in Content-Disposition
     return excel_bytes, f"{demand_note_number}_Non Refundable Output.xlsx"
+
+def sanitize_filename(name):
+    # Replace all non-alphanumeric and non-underscore/dash with underscore
+    return re.sub(r'[^\w\-]', '_', name)

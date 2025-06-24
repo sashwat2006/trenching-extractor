@@ -6,3 +6,7 @@ pandas
 fastapi
 uvicorn
 python-multipart
+opencv-python
+pytesseract
+numpy
+pdf2image
