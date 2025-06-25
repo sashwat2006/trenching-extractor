@@ -39,13 +39,44 @@ export function AuthoritySidebar({ selected, onSelect }: { selected: string; onS
           {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
         </button>
       </div>
-      
+
+      {/* Budget Approvals Section - moved above authorities */}
+      {!isCollapsed && (
+        <>
+          <div className="uppercase text-xs text-purple-300 font-semibold tracking-widest mb-2 px-4 mt-2">
+            Budget Approvals
+          </div>
+          <nav className="flex flex-col gap-1 px-2 mb-4">
+            <button
+              className={`flex items-center w-full px-3 py-2 rounded-lg font-inter text-sm transition-colors ${
+                selected === 'budget-lmc' ? "bg-[#232f47] text-white font-semibold" : "text-gray-300 hover:bg-[#232f47]/60"
+              }`}
+              onClick={() => onSelect('budget-lmc')}
+              title="LMC"
+            >
+              <Settings className="h-5 w-5" />
+              {!isCollapsed && <span className="ml-2">LMC</span>}
+            </button>
+            <button
+              className={`flex items-center w-full px-3 py-2 rounded-lg font-inter text-sm transition-colors ${
+                selected === 'budget-full-route' ? "bg-[#232f47] text-white font-semibold" : "text-gray-300 hover:bg-[#232f47]/60"
+              }`}
+              onClick={() => onSelect('budget-full-route')}
+              title="Full Route"
+            >
+              <Factory className="h-5 w-5" />
+              {!isCollapsed && <span className="ml-2">Full Route</span>}
+            </button>
+          </nav>
+        </>
+      )}
+
       {!isCollapsed && (
         <div className="uppercase text-xs text-gray-400 font-semibold tracking-widest mb-2 px-4">
           Authorities
         </div>
       )}
-        <nav className="flex-1 flex flex-col gap-1 px-2">
+      <nav className="flex-1 flex flex-col gap-1 px-2">
         {authorities.map((auth) => (
           <button
             key={auth.id}

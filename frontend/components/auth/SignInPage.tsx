@@ -31,8 +31,8 @@ export function SignInPage() {
       {/* Left Side - Hero Content */}
       <div className="flex-1 flex flex-col justify-center px-8 lg:px-16 xl:px-24">
         <div className="max-w-lg">
-          <div className="flex items-center space-x-4 mb-8">
-            <Image src="/cloudextel_logo.png" alt="CloudExtel Logo" width={56} height={56} className="h-14 w-14 object-contain" />
+          <div className="flex items-center space-x-5 mb-8">
+            <Image src="/cloudextel_logo.png" alt="CloudExtel Logo" width={140} height={140} className="h-20 w-20 object-contain" />
             <span className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
               CloudExtel
             </span>

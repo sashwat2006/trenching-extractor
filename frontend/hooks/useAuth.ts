@@ -24,7 +24,8 @@ export function useAuth() {
   const handleMicrosoftLogin = async () => {
     setIsLoggingIn(true)
     try {
-      await instance.loginPopup(loginRequest)
+      // Use loginRedirect for more reliable state update in Next.js apps
+      await instance.loginRedirect(loginRequest)
     } finally {
       setIsLoggingIn(false)
     }
