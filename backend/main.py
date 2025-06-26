@@ -12,6 +12,9 @@ import zipfile
 from extract_trench_data import process_demand_note
 import threading
 
+# Import and include the actual_cost_extraction router
+from parsers.actual_cost_extraction import router as actual_cost_extraction_router
+
 app = FastAPI()
 
 # Allow CORS for local frontend
@@ -28,6 +31,9 @@ app.add_middleware(
 preview_cache = {}
 preview_cache_lock = threading.Lock()
 CACHE_EXPIRY_SECONDS = 3600  # 1 hour (optional, not enforced in this snippet)
+
+# Include the actual_cost_extraction router
+app.include_router(actual_cost_extraction_router)
 
 @app.post("/process")
 async def process_pdf(

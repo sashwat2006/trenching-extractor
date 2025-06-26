@@ -91,6 +91,15 @@ export function dedupeBySiteId(rows: any[]) {
 // Upload to Supabase (upsert)
 export async function uploadToSupabase(rows: any[]) {
   const deduped = dedupeBySiteId(rows);
+  const siteIds = deduped.map(row => row["SiteID"]);
+  // Delete all rows not in the uploaded SiteIDs
+  if (siteIds.length > 0) {
+    await supabase
+      .from("budget_lmc")
+      .delete()
+      .not("SiteID", "in", `(${siteIds.map(id => `'${id}'`).join(",")})`);
+  }
+  // Upsert the new/updated rows
   return await supabase
     .from("budget_lmc")
     .upsert(deduped, { onConflict: "SiteID" });
@@ -102,5 +111,5 @@ export async function queryBySiteId(siteId: string, columns: string[]) {
     .from("budget_lmc")
     .select(columns.map(col => `"${col}"`).join(", "))
     .eq("SiteID", siteId)
-    .single();
+    .maybeSingle();
 } 
