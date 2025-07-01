@@ -121,10 +121,6 @@ def extract_gst_amount_from_text(text):
             pass
     return str(int(cgst + sgst)) if (cgst + sgst).is_integer() else str(cgst + sgst)
 
-def extract_sd_amount(text):
-    match = re.search(r"Deposit as 50% of.*?([0-9,]+)", text)
-    return match.group(1).replace(",", "") if match else ""
-
 def extract_sd_amount_from_text(text):
     match = re.search(r"Deposit as 50% of \(C\)\s*=\s*E\s*([0-9,]+\.?[0-9]*)", text)
     if match:
@@ -307,6 +303,66 @@ def extract_covered_under_capping(text, tables):
 def extract_not_part_of_capping(text, tables):
     return ""
 
+def extract_ri_from_tables(tables):
+    for table in tables:
+        df = table.df
+        for i in range(len(df)):
+            for j in range(len(df.columns)):
+                cell = df.iloc[i, j].replace('\n', ' ').strip()
+                if "Total R.I." in cell or "Total R.I. (A+B) = (C)" in cell:
+                    # Return the last column value in this row
+                    for k in range(len(df.columns)-1, -1, -1):
+                        val = df.iloc[i, k].replace(',', '').replace('\n', '').strip()
+                        if val:
+                            return val
+    return ""
+
+def extract_ground_rent_from_text(text):
+    import re
+    match = re.search(r"\(i\)\s*Ground Rent\s*:?\s*([0-9,.]+)", text)
+    if match:
+        try:
+            return str(float(match.group(1).replace(',', '')))
+        except ValueError:
+            return ""
+    return ""
+
+def extract_administrative_charge_from_text(text):
+    import re
+    match = re.search(r"\(ii\)\s*Administrative Charge\s*:?\s*([0-9,.]+)", text)
+    if match:
+        try:
+            return str(float(match.group(1).replace(',', '')))
+        except ValueError:
+            return ""
+    return ""
+
+def extract_supervision_charges_from_text(text):
+    # MCGM: Not applicable, return blank
+    return ""
+
+def extract_chamber_fee_from_text(text):
+    # MCGM: Not applicable, return blank
+    return ""
+
+def extract_gst_from_text(text):
+    # MCGM: Not applicable, return blank (use other GST extractors if needed)
+    return ""
+
+def extract_multiplication_factor_from_tables(tables):
+    def normalize(s):
+        return s.replace('\n', '').replace(' ', '').lower()
+    for idx, table in enumerate(tables):
+        df = table.df
+        for col_idx, col_name in enumerate(df.iloc[0]):
+            if "multiplyingfactor" in normalize(col_name):
+                for i in range(2, len(df)):
+                    val = df.iloc[i, col_idx].replace('\n', '').replace(',', '').strip()
+                    if val and "Total" not in val:
+                        return val
+                break
+    return ""
+
 def non_refundable_request_parser(pdf_path, manual_values=None):
     """
     Main extraction logic for Non Refundable Request Parser (was extract_fields_from_pdf).
@@ -314,9 +370,17 @@ def non_refundable_request_parser(pdf_path, manual_values=None):
     doc = fitz.open(pdf_path)
     text = "\n".join(page.get_text() for page in doc)
     doc.close()
-    print(f"[DEBUG] [mcgm] --- FULL PDF TEXT START ---\n{text}\n[DEBUG] [mcgm] --- FULL PDF TEXT END ---")
     tables = camelot.read_pdf(pdf_path, pages='1', flavor='lattice')
+    print("\n" + "="*60)
+    print("[DEBUG] [mcgm] DN EXTRACTED TEXT (START)")
+    print(text)
+    print("[DEBUG] [mcgm] DN EXTRACTED TEXT (END)")
+    print("-"*60)
     print(f"[DEBUG] [mcgm] Camelot tables found: {len(tables)}")
+    for idx, table in enumerate(tables):
+        print(f"[DEBUG] [mcgm] Table {idx}:")
+        print(table.df)
+    print("="*60 + "\n")
     # ...existing code from extract_trench_data.py's non_refundable_request_parser...
     demand_note_ref = extract_demand_note_reference(text)
     section_length = extract_section_length(text)
@@ -433,3 +497,45 @@ def sd_parser(pdf_path, manual_values=None):
                 idx = alt_headers.index(field)
                 row[idx] = value
     return alt_headers, row
+
+def extract_all_fields_for_testing(pdf_path):
+    import fitz
+    import camelot
+    doc = fitz.open(pdf_path)
+    text = "\n".join(page.get_text() for page in doc)
+    doc.close()
+    tables = camelot.read_pdf(pdf_path, pages='1', flavor='lattice')
+    results = {
+        "Demand Note Reference number": extract_demand_note_reference(text),
+        "Section Length": extract_section_length_from_tables(tables),
+        "GST Amount": extract_gst_amount(text),
+        "GST Amount (from text)": extract_gst_amount_from_text(text),
+        "SD Amount": extract_sd_amount_from_text(text),
+        "ROW APPLICATION DATE": extract_row_application_date(text),
+        "DN Received Date": extract_row_application_date(text),
+        "Demand Note Date": extract_demand_note_date(text),
+        "Difference Days": extract_difference_days(extract_demand_note_date(text)),
+        "Total DN Amount": extract_total_dn_amount({
+            "SD Amount": extract_sd_amount_from_text(text),
+            "Non Refundable Cost( Amount to process for payment shold be sum of 'Z' and 'AA' coulm )": extract_covered_under_capping(text, tables)
+        }),
+        "Road Types": extract_road_types_from_tables(tables),
+        "Rate in Rs": extract_rate_in_rs_from_tables(tables),
+        "Covered under capping": extract_covered_under_capping(text, tables),
+        "Not part of capping": extract_not_part_of_capping(text, tables),
+        "Non Refundable Cost": extract_covered_under_capping(text, tables),
+        "RI Amount": extract_ri_from_tables(tables),
+        "Ground Rent": extract_ground_rent_from_text(text),
+        "Administrative Charge": extract_administrative_charge_from_text(text),
+        "Supervision Charges": extract_supervision_charges_from_text(text),
+        "Chamber Fee": extract_chamber_fee_from_text(text),
+        "GST (custom)": extract_gst_from_text(text),
+        "Multiplication Factor": extract_multiplication_factor_from_tables(tables),
+    }
+    print("\n" + "*"*60)
+    print("[DEBUG] [mcgm] EXTRACTED FIELDS (START)")
+    for k, v in results.items():
+        print(f"  {k}: {v}")
+    print("[DEBUG] [mcgm] EXTRACTED FIELDS (END)")
+    print("*"*60 + "\n")
+    return results

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from typing import List, Optional
@@ -11,16 +11,25 @@ import uuid
 import zipfile
 from extract_trench_data import process_demand_note
 import threading
+import pandas as pd
+from datetime import datetime
+from supabase import create_client, Client
 
 # Import and include the actual_cost_extraction router
 from parsers.actual_cost_extraction import router as actual_cost_extraction_router
+# from parsers.dn_master_upload import router as dn_master_upload_router
+from dotenv import load_dotenv
+from parsers.application_parser import application_parser
+from parsers.po_parser import po_parser
+
+load_dotenv()
 
 app = FastAPI()
 
 # Allow CORS for local frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For dev only; restrict in prod
+    allow_origins=["http://localhost:3000"],  # Allow only frontend origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -34,6 +43,31 @@ CACHE_EXPIRY_SECONDS = 3600  # 1 hour (optional, not enforced in this snippet)
 
 # Include the actual_cost_extraction router
 app.include_router(actual_cost_extraction_router)
+# app.include_router(dn_master_upload_router)
+
+DN_MASTER_COLUMNS = [
+    "sr_no", "route_type", "lmc_route", "ip1_co_built", "dn_recipient", "project_name", "site_id", "uid",
+    "contract_type", "build_type", "category_type", "survey_id", "po_number", "po_length", "route_id_lmc_id",
+    "parent_route", "route_lmc_id", "route_lmc_section_id", "route_lmc_subsection_id", "application_number",
+    "application_length_mtr", "application_date", "from_location", "to_location", "authority", "ward",
+    "survey_done_mtr", "dn_number", "dn_length_mtr", "dn_received_date", "type", "trench_type", "ot_hdd", "pit",
+    "surface", "ri_rate_go_rs", "dn_ri_amount", "multiplying_factor", "ground_rent", "administrative_charge",
+    "supervision_charges", "chamber_fee", "gst", "deposit", "total_dn_amount", "ri_budget_amount_per_meter",
+    "projected_budget_ri_amount_dn", "actual_total_non_refundable", "non_refundable_amount_per_mtr",
+    "non_refundable_savings_per_mtr", "deposit_repeat", "total_dn_amount_repeat", "row_network_id",
+    "route_network_id", "new_revised_dn_number", "new_revised_dn_against", "internal_approval_start",
+    "internal_approval_end", "ticket_raised_date", "dn_payment_date", "tat_days", "civil_completion_date"
+]
+
+SUPABASE_URL = "https://<your-project>.supabase.co"  # TODO: Replace with your actual Supabase URL
+SUPABASE_KEY = "<your-anon-or-service-key>"  # TODO: Replace with your actual Supabase key
+
+def fetch_ri_cost_per_meter_from_supabase(site_id):
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    response = supabase.table("master_budget").select("ri_budget_amount_per_meter").eq("SiteID", site_id).execute()
+    if response.data and len(response.data) > 0:
+        return response.data[0].get("ri_budget_amount_per_meter", "")
+    return ""
 
 @app.post("/process")
 async def process_pdf(
@@ -315,3 +349,85 @@ def debug_headers():
 @app.get("/")
 def root():
     return {"status": "FastAPI backend running"}
+
+@app.post("/api/parse-application")
+async def parse_application_file(dn_application_file: UploadFile = File(...)):
+    import tempfile, os
+    temp_dir = tempfile.gettempdir()
+    temp_path = os.path.join(temp_dir, f"dn_app_{dn_application_file.filename}")
+    file_bytes = await dn_application_file.read()
+    with open(temp_path, "wb") as f:
+        f.write(file_bytes)
+    try:
+        result = application_parser(temp_path)
+        os.remove(temp_path)
+        return result
+    except Exception as e:
+        os.remove(temp_path)
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/parse-po")
+async def parse_po_file(po_file: UploadFile = File(...), site_id: str = Form(...)):
+    import tempfile, os
+    temp_dir = tempfile.gettempdir()
+    temp_path = os.path.join(temp_dir, f"po_{po_file.filename}")
+    file_bytes = await po_file.read()
+    with open(temp_path, "wb") as f:
+        f.write(file_bytes)
+    try:
+        result = po_parser(temp_path, site_id)
+        os.remove(temp_path)
+        return result
+    except Exception as e:
+        os.remove(temp_path)
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/parse-dn")
+async def parse_dn_file(authority: str = Form(...), dn_file: UploadFile = File(...)):
+    import tempfile, os
+    temp_dir = tempfile.gettempdir()
+    temp_path = os.path.join(temp_dir, f"dn_{dn_file.filename}")
+    file_bytes = await dn_file.read()
+    with open(temp_path, "wb") as f:
+        f.write(file_bytes)
+    try:
+        if authority.upper() == "MBMC":
+            from parsers.mbmc import non_refundable_request_parser, HEADERS
+            row = non_refundable_request_parser(temp_path)
+            headers = HEADERS
+            if isinstance(row, dict):
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                return row
+            result = {h: row[i] for i, h in enumerate(headers)}
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            return result
+        elif authority.upper() == "MCGM":
+            from parsers.mcgm import extract_all_fields_for_testing
+            result = extract_all_fields_for_testing(temp_path)
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            return result
+        else:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            return JSONResponse(status_code=400, content={"error": f"Unsupported authority: {authority}"})
+    except Exception as e:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/validate-parsers")
+async def validate_parsers(po_file: UploadFile, dn_file: UploadFile, app_file: UploadFile):
+    # ...existing parsing logic...
+    po_fields = extract_po_fields(po_file)
+    site_id = po_fields.get("SiteID")
+    ri_cost_per_meter = fetch_ri_cost_per_meter_from_supabase(site_id)
+    # ...other extractions...
+    return {
+        "po": po_fields,
+        "dn": dn_fields,
+        "application": app_fields,
+        "ri_cost_per_meter_master_budget": ri_cost_per_meter,
+    }

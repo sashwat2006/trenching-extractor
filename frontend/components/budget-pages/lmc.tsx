@@ -1,6 +1,8 @@
 "use client"
 import { useState, useRef, useEffect } from "react"
 import type React from "react"
+import * as XLSX from 'xlsx';
+import { supabase } from '@/utils/supabaseClient';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -27,9 +29,9 @@ import { parseAndCleanExcel, uploadToSupabase, queryBySiteId, type BudgetData } 
 import { authorities } from "@/constants/authorities"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
-import CostBreakdownStackedBar from "./CostBreakdownStackedBar"
 import PremiumBudgetChart from "./PremiumBudgetChart"
 import GenerateEmailDraftModal from "@/components/email/GenerateEmailDraftModal"
+import DnManagementSection from "./dn"
 
 const queryColumns = [
   "Total RI Amount",
@@ -37,6 +39,49 @@ const queryColumns = [
   "Execution Cost  including HH",
   "Total Cost (Without Deposit)",
 ]
+
+// Date columns in the DB schema
+const DATE_COLUMNS = [
+  "application_date",
+  "dn_received_date",
+  "internal_approval_start",
+  "internal_approval_end",
+  "ticket_raised_date",
+  "dn_payment_date",
+  "civil_completion_date"
+];
+
+// Helper to convert Excel serial date to ISO string
+function excelDateToISO(serial: number): string {
+  const utc_days = Math.floor(serial - 25569);
+  const utc_value = utc_days * 86400; // seconds
+  const date_info = new Date(utc_value * 1000);
+  return date_info.toISOString().slice(0, 10);
+}
+
+// Helper to normalize DD-MM-YYYY or DD/MM/YYYY to YYYY-MM-DD (ISO)
+function normalizeDateStringToISO(val: string): string {
+  // If already YYYY-MM-DD, return as is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+  // If DD-MM-YYYY or DD/MM/YYYY, convert to YYYY-MM-DD
+  const match = val.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+  if (match) {
+    return `${match[3]}-${match[2]}-${match[1]}`;
+  }
+  return val;
+}
+
+// Place fetchDnsBySiteId before useEffect so it's defined
+async function fetchDnsBySiteId(siteId: string) {
+  const { data, error } = await supabase
+    .from("dn_master_final")
+    .select("*")
+    .eq("site_id", siteId);
+  if (error) {
+    throw error;
+  }
+  return data;
+}
 
 export default function LmcPage() {
   const [file, setFile] = useState<File | null>(null)
@@ -75,6 +120,8 @@ export default function LmcPage() {
   const hasUploadedFiles = file && preview.length > 0 && pdfFiles.length > 0
 
   const [showBudgetApprovalModal, setShowBudgetApprovalModal] = useState(false)
+
+  const [existingDns, setExistingDns] = useState<any[]>([])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null)
@@ -244,6 +291,25 @@ export default function LmcPage() {
     setBudgetTableRow(undefined);
   }, [siteId]);
 
+  useEffect(() => {
+    if (!siteId) {
+      setExistingDns([]);
+      return;
+    }
+    fetchDnsBySiteId(siteId)
+      .then(setExistingDns)
+      .catch((err: any) => setQueryError("Failed to fetch DNs: " + err.message));
+  }, [siteId]);
+
+  // Place this above the return statement in LmcPage
+  const uploadedDns = Array.isArray(analysisResult?.results) ? analysisResult.results : [];
+  const mergedDns = [
+    ...uploadedDns,
+    ...existingDns.filter(
+      dbDn => !uploadedDns.some((upDn: any) => upDn.demand_note_reference === dbDn.demand_note_reference)
+    ),
+  ];
+
   return (
     <div className="min-h-screen bg-[#1a1f2e] text-slate-100">
       {/* Header */}
@@ -352,6 +418,9 @@ export default function LmcPage() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Render DN management section below LMC Master File upload */}
+              <DnManagementSection />
             </div>
 
             {/* Data Preview Section - Only show when Excel file is uploaded */}
@@ -560,7 +629,7 @@ export default function LmcPage() {
                       </Badge>
                     </div>
 
-                    {selectedAuthority === "mcgm" && Array.isArray(analysisResult.results) && (
+                    {selectedAuthority === "mcgm" && mergedDns.length > 0 && (
                       <div className="bg-[#1a1f2e] rounded-lg border border-slate-600 overflow-hidden mt-4 p-6">
                         <h3 className="text-2xl font-bold text-white mb-2">Cost Table</h3>
                         <Table>
@@ -576,71 +645,67 @@ export default function LmcPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {analysisResult.results.map((item: any, idx: number) => {
-                              // Calculate Projected Actual per meter cost
-                              let projectedCost = "-"
-                              const ri = parseFloat(item.ri_cost)
-                              const sl = parseFloat(item.section_length)
-                              if (!isNaN(ri) && !isNaN(sl) && sl > 0) {
-                                projectedCost = (ri / sl).toFixed(2)
-                              }
-                              // Calculate Material and Service Costs
-                              const materialCost = !isNaN(sl) ? (sl * 270) : 0
-                              const serviceCost = !isNaN(sl) ? (sl * 1100) : 0
-                              const totalCost = (!isNaN(ri) ? ri : 0) + materialCost + serviceCost
-                              const totalPerMeterCost = (totalCost && sl) ? (totalCost / sl).toFixed(2) : "-"
+                            {mergedDns.map((item: any, idx: number) => {
+                              // Use fallback for each field
+                              const dnNumber = item.dn_number ?? item.demand_note_reference ?? "-";
+                              const sectionLength = parseFloat(item.dn_length_mtr ?? item.section_length ?? 0);
+                              const riCost = parseFloat(item.actual_total_non_refundable ?? item.ri_cost ?? 0);
+                              const materialCost = !isNaN(sectionLength) ? (sectionLength * 270) : 0;
+                              const serviceCost = !isNaN(sectionLength) ? (sectionLength * 1100) : 0;
+                              const totalCost = (!isNaN(riCost) ? riCost : 0) + materialCost + serviceCost;
+                              const totalPerMeterCost = (totalCost && sectionLength) ? (totalCost / sectionLength).toFixed(2) : "-";
                               return (
                                 <TableRow key={idx} className="border-slate-600">
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{item.demand_note_reference ?? '-'}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{item.section_length ?? "-"}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{item.ri_cost ?? "-"}</TableCell>
+                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{dnNumber}</TableCell>
+                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{sectionLength || "-"}</TableCell>
+                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{riCost || "-"}</TableCell>
                                   <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{materialCost ? materialCost.toLocaleString() : "-"}</TableCell>
                                   <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{serviceCost ? serviceCost.toLocaleString() : "-"}</TableCell>
                                   <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalCost ? totalCost.toLocaleString() : "-"}</TableCell>
                                   <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalPerMeterCost}</TableCell>
                                 </TableRow>
                               )})}
-                              {/* Summary Row */}
-                              {(() => {
-                                // Sum section_length and ri_cost, handling non-numeric gracefully
-                                let totalSectionLength: number = 0
-                                let totalRiCost = 0
-                                let totalMaterialCost = 0
-                                let totalServiceCost = 0
-                                let totalTotalCost = 0
-                                let totalProjectedCost = "-"
-                                analysisResult.results.forEach((item: any) => {
-                                  const sl = parseFloat(item.section_length)
-                                  if (!isNaN(sl)) {
-                                    totalSectionLength += sl
-                                    totalMaterialCost += sl * 270
-                                    totalServiceCost += sl * 1100
-                                    totalTotalCost += (parseFloat(item.ri_cost) || 0) + (sl * 270) + (sl * 1100)
-                                  }
-                                  const ri = parseFloat(item.ri_cost)
-                                  if (!isNaN(ri)) {
-                                    totalRiCost += ri
-                                  }
-                                })
-                                if (totalSectionLength > 0) {
-                                  totalProjectedCost = (totalRiCost / totalSectionLength).toFixed(2)
+                            {/* Summary Row */}
+                            {(() => {
+                              // Sum section_length and ri_cost, handling non-numeric gracefully
+                              let totalSectionLength: number = 0;
+                              let totalRiCost = 0;
+                              let totalMaterialCost = 0;
+                              let totalServiceCost = 0;
+                              let totalTotalCost = 0;
+                              let totalProjectedCost = "-";
+                              mergedDns.forEach((item: any) => {
+                                const sectionLength = parseFloat(item.dn_length_mtr ?? item.section_length ?? 0);
+                                const riCost = parseFloat(item.actual_total_non_refundable ?? item.ri_cost ?? 0);
+                                if (!isNaN(sectionLength)) {
+                                  totalSectionLength += sectionLength;
+                                  totalMaterialCost += sectionLength * 270;
+                                  totalServiceCost += sectionLength * 1100;
+                                  totalTotalCost += (isNaN(riCost) ? 0 : riCost) + (sectionLength * 270) + (sectionLength * 1100);
                                 }
-                                let totalPerMeterCostSummary = "-"
-                                if (totalTotalCost > 0 && totalSectionLength > 0) {
-                                  totalPerMeterCostSummary = (totalTotalCost / totalSectionLength).toFixed(2)
+                                if (!isNaN(riCost)) {
+                                  totalRiCost += riCost;
                                 }
-                                return (
-                                  <TableRow className="border-slate-600 font-bold bg-[#232a3a]">
-                                    <TableCell className="text-white font-mono text-center px-2 py-2 text-base">Total</TableCell>
-                                    <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalSectionLength}</TableCell>
-                                    <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalRiCost}</TableCell>
-                                    <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalMaterialCost.toLocaleString()}</TableCell>
-                                    <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalServiceCost.toLocaleString()}</TableCell>
-                                    <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalTotalCost.toLocaleString()}</TableCell>
-                                    <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalPerMeterCostSummary}</TableCell>
-                                  </TableRow>
-                                )
-                              })()}
+                              });
+                              if (totalSectionLength > 0) {
+                                totalProjectedCost = (totalRiCost / totalSectionLength).toFixed(2);
+                              }
+                              let totalPerMeterCostSummary = "-";
+                              if (totalTotalCost > 0 && totalSectionLength > 0) {
+                                totalPerMeterCostSummary = (totalTotalCost / totalSectionLength).toFixed(2);
+                              }
+                              return (
+                                <TableRow className="border-slate-600 font-bold bg-[#232a3a]">
+                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">Total</TableCell>
+                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalSectionLength}</TableCell>
+                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalRiCost}</TableCell>
+                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalMaterialCost.toLocaleString()}</TableCell>
+                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalServiceCost.toLocaleString()}</TableCell>
+                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalTotalCost.toLocaleString()}</TableCell>
+                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalPerMeterCostSummary}</TableCell>
+                                </TableRow>
+                              );
+                            })()}
                           </TableBody>
                         </Table>
                       </div>
@@ -799,10 +864,11 @@ export default function LmcPage() {
                     {/* Generate Budget Approval Request Button */}
                     <div className="flex justify-center mt-8">
                       <Button
-                        className="w-full max-w-xs bg-white hover:bg-gray-100 text-[#1d2636] font-inter font-semibold tracking-tight text-[15px] rounded-lg border border-[#232f47] flex items-center gap-2 shadow-sm px-4 py-2.5 transition-colors justify-center"
+                        className="w-full max-w-xs bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white text-base font-bold shadow-lg px-6 py-4 flex items-center gap-2 transition-colors duration-150 justify-center rounded-none"
                         onClick={() => setShowBudgetApprovalModal(true)}
+                        size="lg"
                       >
-                        <svg className="text-black text-lg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M9 9h6v6H9z"/></svg>
+                        <BarChart3 className="h-5 w-5 text-white" />
                         Generate Budget Approval Request
                       </Button>
                     </div>
