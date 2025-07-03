@@ -3,6 +3,8 @@ import { useState, useRef, useEffect } from "react"
 import type React from "react"
 import * as XLSX from 'xlsx';
 import { supabase } from '@/utils/supabaseClient';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -24,21 +26,23 @@ import {
   Trash2,
   BarChart3,
   Brain,
+  Zap,
 } from "lucide-react"
 import { parseAndCleanExcel, uploadToSupabase, queryBySiteId, type BudgetData } from "@/lib/lmcLogic"
 import { authorities } from "@/constants/authorities"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import PremiumBudgetChart from "./PremiumBudgetChart"
 import GenerateEmailDraftModal from "@/components/email/GenerateEmailDraftModal"
 import DnManagementSection from "./dn"
 
 const queryColumns = [
-  "Total RI Amount",
-  "Material Cost",
-  "Execution Cost  including HH",
-  "Total Cost (Without Deposit)",
-]
+  "total_ri_amount",
+  "material_cost",
+  "execution_cost_including_hh",
+  "total_cost_without_deposit",
+  "survey_id",
+  "existing_new",
+];
 
 // Date columns in the DB schema
 const DATE_COLUMNS = [
@@ -74,14 +78,23 @@ function normalizeDateStringToISO(val: string): string {
 // Place fetchDnsBySiteId before useEffect so it's defined
 async function fetchDnsBySiteId(siteId: string) {
   const { data, error } = await supabase
-    .from("dn_master_final")
+    .from("dn_master")
     .select("*")
-    .eq("site_id", siteId);
+    .eq("route_id_site_id", siteId);
   if (error) {
     throw error;
   }
   return data;
 }
+
+// Helper to get total cost per meter from Budget Table (stub, replace with real logic if needed)
+function useBudgetTableTotalCostPerMeter(siteId: string): number | null {
+  // TODO: Replace with actual logic to fetch or compute from SupabaseQueryTable
+  // For now, return null to show placeholder
+  return null;
+}
+
+// NOTE: The Full Route tab is included here so that both LMC and Full Route workflows share the same tab system and UI context. This allows users to switch between LMC and Full Route without navigating to a different route or page, keeping the experience consistent and stateful.
 
 export default function LmcPage() {
   const [file, setFile] = useState<File | null>(null)
@@ -100,6 +113,9 @@ export default function LmcPage() {
 
   // Query state
   const [siteId, setSiteId] = useState("")
+  const [siteIdOptions, setSiteIdOptions] = useState<string[]>([])
+  const [siteIdDropdownOpen, setSiteIdDropdownOpen] = useState(false)
+  const [siteIdInputValue, setSiteIdInputValue] = useState("")
   const [queryResult, setQueryResult] = useState<any | null>(null)
   const [queryError, setQueryError] = useState<string | null>(null)
   const [queryLoading, setQueryLoading] = useState(false)
@@ -123,6 +139,63 @@ export default function LmcPage() {
 
   const [existingDns, setExistingDns] = useState<any[]>([])
 
+  // Add state to control when analysis is performed
+  const [analysisTriggered, setAnalysisTriggered] = useState(false);
+
+  // DN Master Excel upload state and handlers
+  const [dnMasterFile, setDnMasterFile] = useState<File | null>(null);
+  const [dnUploading, setDnUploading] = useState(false);
+  const [dnError, setDnError] = useState<string | null>(null);
+  const [dnSuccess, setDnSuccess] = useState<string | null>(null);
+  const handleDnMasterFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDnMasterFile(e.target.files?.[0] || null);
+    setDnError(null);
+    setDnSuccess(null);
+  };
+  const handleDnMasterUpload = async () => {
+    if (!dnMasterFile) return;
+    setDnUploading(true);
+    setDnError(null);
+    setDnSuccess(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', dnMasterFile);
+      const response = await fetch('http://localhost:8000/api/upload-dn-master', {
+        method: 'POST',
+        body: formData,
+      });
+      const result = await response.json();
+      if (!response.ok || result.success === false) {
+        let errorMsg = result.errors ? result.errors.join('\n') : (result.detail || result.message || 'Upload failed');
+        setDnError(errorMsg);
+        return;
+      }
+      setDnSuccess('All rows upserted successfully for DN Master!');
+    } catch (err: any) {
+      setDnError(err.message || 'Upload failed');
+    } finally {
+      setDnUploading(false);
+      setDnMasterFile(null);
+      const input = document.getElementById('dn-master-file-input') as HTMLInputElement | null;
+      if (input) input.value = '';
+    }
+  };
+
+  // Fetch all unique Site IDs from Supabase on mount
+  useEffect(() => {
+    async function fetchSiteIds() {
+      const { data, error } = await supabase
+        .from("dn_master")
+        .select("route_id_site_id")
+        .neq("route_id_site_id", null);
+      if (!error && data) {
+        const unique = Array.from(new Set(data.map((row: any) => row.route_id_site_id).filter(Boolean)));
+        setSiteIdOptions(unique);
+      }
+    }
+    fetchSiteIds();
+  }, []);
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null)
     setSuccess(null)
@@ -130,7 +203,9 @@ export default function LmcPage() {
     setFile(f)
     if (f) {
       try {
+        console.time('parseAndCleanExcel');
         const cleaned = await parseAndCleanExcel(f)
+        console.timeEnd('parseAndCleanExcel');
         setPreview(cleaned)
       } catch (err: any) {
         setError("Failed to parse Excel file: " + (err.message || err))
@@ -175,12 +250,14 @@ export default function LmcPage() {
     setError(null)
     setSuccess(null)
     try {
+      console.time('uploadToSupabase');
       const { error: supabaseError } = await uploadToSupabase(preview)
+      console.timeEnd('uploadToSupabase');
       if (supabaseError) {
         setError("Supabase error: " + supabaseError.message + " (" + supabaseError.details + ")")
         return
       }
-      setSuccess("LMC Master File updated successfully!")
+      setSuccess("All rows upserted successfully for LMC Master!")
     } catch (err: any) {
       setError("Upload failed: " + (err.message || err))
     } finally {
@@ -310,14 +387,69 @@ export default function LmcPage() {
     ),
   ];
 
+  const handleBudgetAnalysis = () => {
+    if (!siteId.trim()) return;
+    setAnalysisTriggered(true);
+  };
+
+  // --- Add to your state section (if not already present) ---
+  const [poMasterFile, setPoMasterFile] = useState<File | null>(null);
+  const [poMasterUploading, setPoMasterUploading] = useState(false);
+  const [poMasterError, setPoMasterError] = useState<string | null>(null);
+  const [poMasterSuccess, setPoMasterSuccess] = useState<string | null>(null);
+
+  // --- Add these handler functions ---
+  const handlePoMasterFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPoMasterFile(e.target.files?.[0] || null);
+    setPoMasterError(null);
+    setPoMasterSuccess(null);
+  };
+
+  const handlePoMasterUpload = async () => {
+    if (!poMasterFile) {
+      setPoMasterError("Please select a PO Master Excel file.");
+      return;
+    }
+    setPoMasterUploading(true);
+    setPoMasterError(null);
+    setPoMasterSuccess(null);
+    try {
+      console.time('poMasterUpload');
+      const formData = new FormData();
+      formData.append("file", poMasterFile);
+      const res = await fetch("http://localhost:8000/api/upload-po-master", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const result = await res.json();
+        throw new Error(result.detail || result.message || "Upload failed");
+      }
+      console.timeEnd('poMasterUpload');
+      setPoMasterSuccess("All rows upserted successfully for PO Master!");
+    } catch (err: any) {
+      let msg = "Upload failed";
+      if (err?.message) {
+        msg = err.message;
+      } else if (typeof err === "string") {
+        msg = err;
+      } else if (err && typeof err === "object") {
+        msg = JSON.stringify(err);
+      }
+      setPoMasterError(msg);
+    } finally {
+      setPoMasterUploading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#1a1f2e] text-slate-100">
       {/* Header */}
-      <div className="border-b border-slate-700 bg-[#1a1f2e]">
+      <div className="border-b border-slate-700 bg-[#101624]">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-white">LMC Budget Approval System</h1>
+              <h1 className="text-2xl font-semibold text-white">CloudExtel Budget Analysis & Approval Hub</h1>
               <p className="text-slate-400 mt-1">Upload and analyze your budget data</p>
             </div>
             <div className="flex items-center gap-6 text-sm">
@@ -331,97 +463,189 @@ export default function LmcPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 bg-[#2a3441] border border-slate-600">
-            <TabsTrigger
-              value="upload"
-              className="flex items-center gap-2 data-[state=active]:bg-[#1a1f2e] data-[state=active]:text-white"
+        {/* Custom Tab Bar */}
+        <div className="relative w-full flex border border-slate-700 rounded-xl bg-[#101624] mb-8" style={{height: 56}}>
+          {['upload', 'analysis'].map((tab, idx) => (
+            <button
+              key={tab}
+              className={`flex-1 h-full flex items-center justify-center font-inter font-semibold text-lg transition-colors duration-150 z-10
+                ${activeTab === tab ? 'text-white' : 'text-white/60'}`}
+              style={{position: 'relative'}}
+              onClick={() => setActiveTab(tab)}
+              tabIndex={0}
+              type="button"
             >
-              Upload & Manage
-            </TabsTrigger>
-            <TabsTrigger
-              value="analysis"
-              className="flex items-center gap-2 data-[state=active]:bg-[#1a1f2e] data-[state=active]:text-white"
-            >
-              Budget Analysis
-            </TabsTrigger>
-          </TabsList>
+              {tab === 'upload' ? 'Upload & Manage' : 'Budget Analysis'}
+            </button>
+          ))}
+          {/* Sliding underline */}
+          <span
+            className="absolute bottom-0 left-0 h-1 rounded-b-xl bg-white transition-all duration-300"
+            style={{
+              width: '50%',
+              transform: activeTab === 'upload' ? 'translateX(0%)' : 'translateX(100%)',
+            }}
+          />
+        </div>
 
-          {/* Upload & Manage Tab */}
-          <TabsContent value="upload" className="space-y-8">
-            {/* Upload Section - Only LMC Master File Upload */}
-            <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-              {/* LMC Master File Upload */}
-              <Card className="bg-[#232a3a] border border-slate-700 shadow-lg">
-                <CardHeader className="border-b border-slate-600">
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-orange-400" />
-                    LMC Master File
-                  </CardTitle>
-                  <CardDescription className="text-slate-400">
-                    Upload your LMC Excel file to update budget data
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                  {/* Upload Area */}
-                  <div
-                    className="border-2 border-dashed border-orange-400 rounded-lg p-6 text-center hover:border-orange-500 focus-within:border-orange-500 transition-colors cursor-pointer bg-orange-900/20"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <input
-                      type="file"
-                      accept=".xlsx,.xls"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                    <FileSpreadsheet className="h-10 w-10 text-orange-400 mx-auto mb-3" />
-                    <h3 className="text-base font-medium text-white mb-2">
-                      {file ? "Change Excel File" : "Upload Excel File"}
-                    </h3>
-                    <p className="text-orange-400 text-xs mt-1">Supports .xlsx and .xls files</p>
+        {/* Tab Content */}
+        {activeTab === 'upload' && (
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full mb-8">
+              {/* Master PO File Card (move to left) */}
+              <Card className="flex-1 flex flex-col h-full bg-[#101624] shadow-2xl border-none p-0 rounded-3xl">
+                <CardHeader className="pb-1 flex flex-col gap-1 border-b border-slate-800/60 bg-[#101624]">
+                  <div className="min-h-[48px] flex flex-col justify-center">
+                    <CardTitle className="text-2xl font-semibold text-white flex items-center gap-2 tracking-normal">
+                      <FileSpreadsheet className="h-7 w-7 text-blue-400 drop-shadow-lg" />
+                      <span>Master PO File</span>
+                    </CardTitle>
                   </div>
-
-                  {/* Upload Button */}
-                  <Button
-                    onClick={handleUpload}
-                    disabled={uploading || !file || preview.length === 0}
-                    className="w-full bg-gradient-to-r from-orange-400 to-orange-600 hover:from-orange-500 hover:to-orange-700 text-white font-semibold"
-                    size="lg"
-                  >
-                    {uploading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        <Database className="mr-2 h-4 w-4 text-orange-400" />
-                        Upload to Database
-                      </>
-                    )}
-                  </Button>
-
-                  {/* Status Messages */}
-                  {error && (
-                    <Alert className="bg-red-950/50 border-red-800 text-red-200">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  {success && (
-                    <Alert className="bg-green-950/50 border-green-800 text-green-200">
-                      <CheckCircle className="h-4 w-4" />
-                      <AlertDescription>{success}</AlertDescription>
-                    </Alert>
-                  )}
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col h-full pt-0 pb-4 px-4">
+                  <div className="flex-1 flex flex-col justify-end w-full">
+                    <div
+                      className="w-full min-h-[120px] max-w-5xl bg-[#101624] border-2 border-dashed border-blue-500 rounded-2xl flex flex-col items-center justify-center py-4 px-4 mb-0 mt-3 cursor-pointer transition hover:bg-[#16203a]"
+                      onClick={() => {
+                        if (poMasterUploading) return;
+                        document.getElementById('po-master-file-input')?.click();
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { document.getElementById('po-master-file-input')?.click(); } }}
+                    >
+                      <FileSpreadsheet className="h-14 w-14 text-blue-400 mb-1" />
+                      <div className="font-semibold text-lg text-white mb-0.5">Upload Excel File</div>
+                      <div className="text-xs text-slate-400">Supports .xlsx and .xls files</div>
+                      <input
+                        id="po-master-file-input"
+                        type="file"
+                        accept=".xlsx,.xls"
+                        className="hidden"
+                        onChange={handlePoMasterFileChange}
+                      />
+                    </div>
+                    <div className="min-h-[20px] text-xs text-blue-300 mt-1">{poMasterFile ? poMasterFile.name : ""}</div>
+                    <Button
+                      className="w-full bg-gradient-to-r from-blue-500 to-blue-700 text-white font-semibold rounded-md shadow-lg hover:from-blue-600 hover:to-blue-800 transition py-2 text-base flex items-center gap-2 justify-center"
+                      onClick={() => {
+                        if (!poMasterFile || poMasterUploading) return;
+                        handlePoMasterUpload();
+                      }}
+                    >
+                      {poMasterUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5 mr-1" />}
+                      {poMasterUploading ? 'Uploading...' : 'Upload to Database'}
+                    </Button>
+                    <div className="min-h-[32px] w-full">
+                      {poMasterError && <Alert className="bg-blue-950/50 border-blue-800 text-blue-200 mt-4"><AlertCircle className="h-4 w-4" /><AlertDescription>{poMasterError}</AlertDescription></Alert>}
+                      {poMasterSuccess && <Alert className="bg-blue-950/50 border-blue-800 text-blue-200 mt-4"><CheckCircle className="h-4 w-4" /><AlertDescription>{poMasterSuccess}</AlertDescription></Alert>}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
-
-              {/* Render DN management section below LMC Master File upload */}
-              <DnManagementSection />
+              {/* Master Budget File Card (middle) */}
+              <Card className="flex-1 flex flex-col h-full bg-[#101624] shadow-2xl border-none p-0 rounded-3xl">
+                <CardHeader className="pb-1 flex flex-col gap-1 border-b border-slate-800/60 bg-[#101624]">
+                  <div className="min-h-[48px] flex flex-col justify-center">
+                    <CardTitle className="text-2xl font-semibold text-white flex items-center gap-2 tracking-normal">
+                      <FileSpreadsheet className="h-7 w-7 text-blue-400 drop-shadow-lg" />
+                      <span>Master Budget File</span>
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col h-full pt-0 pb-4 px-4">
+                  <div className="flex-1 flex flex-col justify-end w-full">
+                    <div
+                      className="w-full min-h-[120px] max-w-5xl bg-[#101624] border-2 border-dashed border-blue-500 rounded-2xl flex flex-col items-center justify-center py-4 px-4 mb-0 mt-3 cursor-pointer transition hover:bg-[#16203a]"
+                      onClick={() => {
+                        if (uploading) return;
+                        document.getElementById('lmc-master-file-input')?.click();
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { document.getElementById('lmc-master-file-input')?.click(); } }}
+                    >
+                      <FileSpreadsheet className="h-14 w-14 text-blue-400 mb-1" />
+                      <div className="font-semibold text-lg text-white mb-0.5">Upload Excel File</div>
+                      <div className="text-xs text-slate-400">Supports .xlsx and .xls files</div>
+                      <input
+                        id="lmc-master-file-input"
+                        type="file"
+                        accept=".xlsx,.xls"
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
+                    </div>
+                    <div className="min-h-[20px] text-xs text-blue-300 mt-1">{file ? file.name : ""}</div>
+                    <Button
+                      className="w-full bg-gradient-to-r from-blue-500 to-blue-700 text-white font-semibold rounded-md shadow-lg hover:from-blue-600 hover:to-blue-800 transition py-2 text-base flex items-center gap-2 justify-center"
+                      onClick={handleUpload}
+                    >
+                      {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5 mr-1" />}
+                      {uploading ? 'Uploading...' : 'Upload to Database'}
+                    </Button>
+                    <div className="min-h-[32px] w-full">
+                      {error && <Alert className="bg-blue-950/50 border-blue-800 text-blue-200 mt-4"><AlertCircle className="h-4 w-4" /><AlertDescription>{error}</AlertDescription></Alert>}
+                      {success && <Alert className="bg-blue-950/50 border-blue-800 text-blue-200 mt-4"><CheckCircle className="h-4 w-4" /><AlertDescription>{success}</AlertDescription></Alert>}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              {/* Master DN File Card (move to right) */}
+              <Card className="flex-1 flex flex-col h-full bg-[#101624] shadow-2xl border-none p-0 rounded-3xl">
+                <CardHeader className="pb-1 flex flex-col gap-1 border-b border-slate-800/60 bg-[#101624]">
+                  <div className="min-h-[48px] flex flex-col justify-center">
+                    <CardTitle className="text-2xl font-semibold text-white flex items-center gap-2 tracking-normal">
+                      <FileSpreadsheet className="h-7 w-7 text-blue-400 drop-shadow-lg" />
+                      <span>Master DN File</span>
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col h-full pt-0 pb-4 px-4">
+                  <div className="flex-1 flex flex-col justify-end w-full">
+                    <div
+                      className="w-full min-h-[120px] max-w-5xl bg-[#101624] border-2 border-dashed border-blue-500 rounded-2xl flex flex-col items-center justify-center py-4 px-4 mb-0 mt-3 cursor-pointer transition hover:bg-[#16203a]"
+                      onClick={() => {
+                        if (dnUploading) return;
+                        document.getElementById('dn-master-file-input')?.click();
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { document.getElementById('dn-master-file-input')?.click(); } }}
+                    >
+                      <FileSpreadsheet className="h-14 w-14 text-blue-400 mb-1" />
+                      <div className="font-semibold text-lg text-white mb-0.5">Upload Excel File</div>
+                      <div className="text-xs text-slate-400">Supports .xlsx and .xls files</div>
+                      <input
+                        id="dn-master-file-input"
+                        type="file"
+                        accept=".xlsx,.xls"
+                        className="hidden"
+                        onChange={handleDnMasterFileChange}
+                      />
+                    </div>
+                    <div className="min-h-[20px] text-xs text-blue-300 mt-1">{dnMasterFile ? dnMasterFile.name : ""}</div>
+                    <Button
+                      className="w-full bg-gradient-to-r from-blue-500 to-blue-700 text-white font-semibold rounded-md shadow-lg hover:from-blue-600 hover:to-blue-800 transition py-2 text-base flex items-center gap-2 justify-center"
+                      onClick={() => {
+                        if (!dnMasterFile || dnUploading) return;
+                        handleDnMasterUpload();
+                      }}
+                    >
+                      {dnUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5 mr-1" />}
+                      {dnUploading ? 'Uploading...' : 'Upload to Database'}
+                    </Button>
+                    <div className="min-h-[32px] w-full">
+                      {dnError && <Alert className="bg-blue-950/50 border-blue-800 text-blue-200 mt-4"><AlertCircle className="h-4 w-4" /><AlertDescription>{dnError}</AlertDescription></Alert>}
+                      {dnSuccess && <Alert className="bg-blue-950/50 border-blue-800 text-blue-200 mt-4"><CheckCircle className="h-4 w-4" /><AlertDescription>{dnSuccess}</AlertDescription></Alert>}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
+
+            {/* Render DN management section below LMC Master File upload */}
+            <DnManagementSection />
 
             {/* Data Preview Section - Only show when Excel file is uploaded */}
             {preview.length > 0 && (
@@ -448,7 +672,7 @@ export default function LmcPage() {
                         {preview.slice(0, 5).map((row, i) => (
                           <TableRow key={i} className="border-slate-600 hover:bg-slate-700/30">
                             {Object.values(row).map((val, j) => (
-                              <TableCell key={j} className="text-slate-200 font-mono text-sm">
+                              <TableCell key={j} className="text-slate-200 font-sans text-sm">
                                 {formatNumber(val)}
                               </TableCell>
                             ))}
@@ -465,457 +689,153 @@ export default function LmcPage() {
                 </CardContent>
               </Card>
             )}
-          </TabsContent>
-
-          {/* Budget Analysis Tab */}
-          <TabsContent value="analysis" className="space-y-8">
-            {/* DN Budget Analysis (with Demand Notes upload UI inside) */}
-            <Card className="bg-[#232a3a] border-slate-700 shadow-xl rounded-2xl backdrop-blur-md">
-              <CardHeader className="border-b border-slate-700 pb-4">
-                <CardTitle className="text-white flex items-center gap-2 text-2xl font-semibold tracking-tight">
-                  <BarChart3 className="h-6 w-6 text-orange-400" />
-                   Demand Note Budget Analysis
-                </CardTitle>
-                <CardDescription className="text-slate-400 mt-1 text-base">
-                  Analyze uploaded demand notes and extract budget information using AI-powered processing
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-8 space-y-8">
-                {/* Two-column layout for upload and site ID */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Left: Authority and PDF upload */}
-                  <div className="space-y-6 bg-[#1a1f2e]/60 rounded-xl p-6 border border-slate-700">
-                    {/* Authority Dropdown */}
-                    <div>
-                      <Label className="text-slate-300 font-medium mb-2 block text-lg">
-                        Select Authority
-                      </Label>
-                      <Select value={selectedAuthority} onValueChange={setSelectedAuthority}>
-                        <SelectTrigger className="w-full bg-[#232a3a] border border-slate-600 text-white rounded-lg px-4 py-3 focus:ring-2 focus:ring-orange-500 transition-all">
-                          <SelectValue placeholder="-- Choose Authority --" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#232a3a] border border-slate-600 text-white rounded-lg">
-                          {authorities.map((auth) => (
-                            <SelectItem key={auth.id} value={auth.id}>
-                              {auth.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Upload Area */}
-                    <div
-                      className="border-2 border-dashed border-slate-600 rounded-xl p-6 text-center hover:border-orange-400 transition-colors cursor-pointer bg-[#232a3a]/60"
-                      onClick={() => pdfInputRef.current?.click()}
-                    >
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        multiple
-                        ref={pdfInputRef}
-                        onChange={handlePdfChange}
-                        className="hidden"
-                      />
-                      <FileText className="h-10 w-10 text-orange-400 mx-auto mb-3" />
-                      <h3 className="text-base font-semibold text-white mb-1">Upload Demand Notes</h3>
-                      <p className="text-slate-400 text-sm">Click to browse or drag & drop multiple PDFs</p>
-                      <p className="text-slate-500 text-xs mt-1">Only PDF files are supported</p>
-                    </div>
-
-                    {/* PDF Files List */}
-                    {pdfFiles.length > 0 && (
-                      <div className="space-y-2 mt-2 bg-[#232a3a]/80 rounded-lg p-3 border border-slate-700">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-slate-300 text-sm font-medium">Selected Files ({pdfFiles.length})</span>
-                          <Button
-                            onClick={clearAllPdfs}
-                            variant="ghost"
-                            size="sm"
-                            className="text-slate-400 hover:text-red-400 px-2 py-1"
-                          >
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Clear All
-                          </Button>
-                        </div>
-                        <div className="divide-y divide-slate-700 max-h-32 overflow-y-auto">
-                          {pdfFiles.map((file, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center justify-between py-2 first:pt-0 last:pb-0"
-                            >
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <FileText className="h-4 w-4 text-orange-400 flex-shrink-0" />
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-slate-200 text-sm truncate font-mono">{file.name}</p>
-                                  <p className="text-slate-500 text-xs">{formatFileSize(file.size)}</p>
-                                </div>
-                              </div>
-                              <Button
-                                onClick={() => removePdfFile(index)}
-                                variant="ghost"
-                                size="sm"
-                                className="text-slate-400 hover:text-red-400 flex-shrink-0 px-2"
+          </div>
+        )}
+        {activeTab === 'analysis' && (
+          <Card className="bg-[#101624] border-none shadow-2xl rounded-3xl backdrop-blur-md">
+            <CardHeader className="border-b border-slate-700 pb-4">
+              <CardTitle className="text-white flex items-center gap-2 text-2xl font-semibold tracking-tight">
+                <BarChart3 className="h-6 w-6 text-orange-400" />
+                 Budget Analysis
+              </CardTitle>
+              <CardDescription className="text-slate-400 mt-1 text-base">
+                Enter a Site ID and click "Perform Budget Analysis" to view budget and actuals for that site.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 space-y-8">
+              {/* Site ID input and button sectioned off */}
+              <div className="bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-slate-700 shadow-xl rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-6 w-full mb-8">
+                <div className="flex flex-col sm:flex-row items-center w-full gap-4">
+                  <div className="flex flex-col w-60 max-w-xs">
+                    <label htmlFor="siteId" className="text-slate-200 font-semibold text-base mb-1 font-sans tracking-wide">
+                      Site ID <span className="text-red-500">*</span>
+                    </label>
+                    <Popover open={siteIdDropdownOpen} onOpenChange={setSiteIdDropdownOpen}>
+                      <PopoverTrigger asChild>
+                        <Input
+                          id="siteId"
+                          type="text"
+                          value={siteIdInputValue}
+                          onChange={e => {
+                            setSiteIdInputValue(e.target.value);
+                            setSiteId(e.target.value);
+                            setAnalysisTriggered(false);
+                          }}
+                          onFocus={() => setSiteIdDropdownOpen(true)}
+                          placeholder="Enter or select Site ID"
+                          className="font-sans text-base bg-[#161c2d] border border-slate-600 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all w-full"
+                          autoComplete="off"
+                        />
+                      </PopoverTrigger>
+                      <PopoverContent className="w-60 p-0 max-h-56 overflow-y-auto bg-[#161c2d] border border-slate-700 rounded-lg shadow-xl">
+                        {siteIdOptions.filter(id => id.toLowerCase().includes(siteIdInputValue.toLowerCase())).length === 0 ? (
+                          <div className="px-4 py-2 text-slate-400 text-sm">No matching Site IDs</div>
+                        ) : (
+                          siteIdOptions
+                            .filter(id => id.toLowerCase().includes(siteIdInputValue.toLowerCase()))
+                            .map(id => (
+                              <div
+                                key={id}
+                                className={cn(
+                                  "px-4 py-2 cursor-pointer hover:bg-blue-700/30 text-white text-sm rounded transition-all",
+                                  siteId === id && "bg-blue-700/40 font-semibold"
+                                )}
+                                onMouseDown={() => {
+                                  setSiteId(id);
+                                  setSiteIdInputValue(id);
+                                }}
                               >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Status Messages */}
-                    {pdfError && (
-                      <Alert className="bg-red-950/50 border-red-800 text-red-200 mt-4">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>{pdfError}</AlertDescription>
-                      </Alert>
-                    )}
+                                {id}
+                              </div>
+                            ))
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   </div>
-
-                  {/* Right: Site ID input */}
-                  <div className="space-y-6 bg-[#1a1f2e]/60 rounded-xl p-6 border border-slate-700 flex flex-col justify-between">
-                    <div>
-                      <h4 className="text-white text-lg font-semibold mb-4">Site ID <span className="text-red-400">*</span></h4>
-                      <Input
-                        id="siteId"
-                        type="text"
-                        value={siteId}
-                        onChange={(e) => setSiteId(e.target.value)}
-                        placeholder="Enter Site ID"
-                        required
-                        className="bg-[#232a3a] border border-slate-600 text-white placeholder:text-slate-500 font-mono px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Parse Demand Notes button below both columns */}
-                <div className="flex justify-center mt-10">
-                  <Button
-                    onClick={() => handleDnAnalysis(selectedAuthority)}
-                    disabled={analysisLoading || !selectedAuthority || pdfFiles.length === 0 || !siteId.trim()}
-                    className="bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 text-white px-10 py-4 text-lg font-bold rounded-xl shadow-lg transition-all duration-150"
-                    size="lg"
+                  <button
+                    onClick={handleBudgetAnalysis}
+                    className="bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 text-white font-bold text-base px-8 py-3 rounded-lg flex items-center gap-2 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    style={{ minWidth: '220px' }}
                   >
-                    {analysisLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Analyzing...
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="mr-2 h-5 w-5" />
-                        Perform Budget Analysis
-                      </>
-                    )}
-                  </Button>
+                    <Zap className="h-6 w-6 mr-2" />
+                    Perform Budget Analysis
+                  </button>
                 </div>
-
-                {analysisError && (
-                  <Alert className="bg-red-950/50 border-red-800 text-red-200 mt-6">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{analysisError}</AlertDescription>
-                  </Alert>
-                )}
-
-                {analysisResult && (
-                  <div className="space-y-6 mt-8">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xl font-semibold text-white">Analysis Results</h3>
-                      <Badge variant="secondary" className="bg-orange-600 text-white">
-                        Analysis Complete
-                      </Badge>
+              </div>
+              {/* Only show analysis if triggered and siteId is present */}
+              {analysisTriggered && siteId && (
+                <>
+                  {/* Prior Analysis Section */}
+                  <div className="mb-8 bg-[#101624] shadow-2xl rounded-3xl border-none">
+                    <div className="border-b border-slate-800/60 pb-3 px-6 pt-4 bg-[#101624]">
+                      <h2 className="text-white text-2xl font-bold font-sans mb-2 mt-6">Prior Analysis</h2>
                     </div>
-
-                    {selectedAuthority === "mcgm" && mergedDns.length > 0 && (
-                      <div className="bg-[#1a1f2e] rounded-lg border border-slate-600 overflow-hidden mt-4 p-6">
-                        <h3 className="text-2xl font-bold text-white mb-2">Cost Table</h3>
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="border-slate-600">
-                              <TableHead className="text-slate-300 font-medium text-center px-2 py-2 text-base">DN</TableHead>
-                              <TableHead className="text-slate-300 font-medium text-center px-2 py-2 text-base">Section Length</TableHead>
-                              <TableHead className="text-slate-300 font-medium text-center px-2 py-2 text-base">RI Cost</TableHead>
-                              <TableHead className="text-slate-300 font-medium text-center px-2 py-2 text-base">Material Cost</TableHead>
-                              <TableHead className="text-slate-300 font-medium text-center px-2 py-2 text-base">Service Cost</TableHead>
-                              <TableHead className="text-slate-300 font-medium text-center px-2 py-2 text-base">Total Cost</TableHead>
-                              <TableHead className="text-slate-300 font-medium text-center px-2 py-2 text-base">Total Cost Per Meter</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {mergedDns.map((item: any, idx: number) => {
-                              // Use fallback for each field
-                              const dnNumber = item.dn_number ?? item.demand_note_reference ?? "-";
-                              const sectionLength = parseFloat(item.dn_length_mtr ?? item.section_length ?? 0);
-                              const riCost = parseFloat(item.actual_total_non_refundable ?? item.ri_cost ?? 0);
-                              const materialCost = !isNaN(sectionLength) ? (sectionLength * 270) : 0;
-                              const serviceCost = !isNaN(sectionLength) ? (sectionLength * 1100) : 0;
-                              const totalCost = (!isNaN(riCost) ? riCost : 0) + materialCost + serviceCost;
-                              const totalPerMeterCost = (totalCost && sectionLength) ? (totalCost / sectionLength).toFixed(2) : "-";
-                              return (
-                                <TableRow key={idx} className="border-slate-600">
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{dnNumber}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{sectionLength || "-"}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{riCost || "-"}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{materialCost ? materialCost.toLocaleString() : "-"}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{serviceCost ? serviceCost.toLocaleString() : "-"}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalCost ? totalCost.toLocaleString() : "-"}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalPerMeterCost}</TableCell>
-                                </TableRow>
-                              )})}
-                            {/* Summary Row */}
-                            {(() => {
-                              // Sum section_length and ri_cost, handling non-numeric gracefully
-                              let totalSectionLength: number = 0;
-                              let totalRiCost = 0;
-                              let totalMaterialCost = 0;
-                              let totalServiceCost = 0;
-                              let totalTotalCost = 0;
-                              let totalProjectedCost = "-";
-                              mergedDns.forEach((item: any) => {
-                                const sectionLength = parseFloat(item.dn_length_mtr ?? item.section_length ?? 0);
-                                const riCost = parseFloat(item.actual_total_non_refundable ?? item.ri_cost ?? 0);
-                                if (!isNaN(sectionLength)) {
-                                  totalSectionLength += sectionLength;
-                                  totalMaterialCost += sectionLength * 270;
-                                  totalServiceCost += sectionLength * 1100;
-                                  totalTotalCost += (isNaN(riCost) ? 0 : riCost) + (sectionLength * 270) + (sectionLength * 1100);
-                                }
-                                if (!isNaN(riCost)) {
-                                  totalRiCost += riCost;
-                                }
-                              });
-                              if (totalSectionLength > 0) {
-                                totalProjectedCost = (totalRiCost / totalSectionLength).toFixed(2);
-                              }
-                              let totalPerMeterCostSummary = "-";
-                              if (totalTotalCost > 0 && totalSectionLength > 0) {
-                                totalPerMeterCostSummary = (totalTotalCost / totalSectionLength).toFixed(2);
-                              }
-                              return (
-                                <TableRow className="border-slate-600 font-bold bg-[#232a3a]">
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">Total</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalSectionLength}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalRiCost}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalMaterialCost.toLocaleString()}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalServiceCost.toLocaleString()}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalTotalCost.toLocaleString()}</TableCell>
-                                  <TableCell className="text-white font-mono text-center px-2 py-2 text-base">{totalPerMeterCostSummary}</TableCell>
-                                </TableRow>
-                              );
-                            })()}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-
-                    {/* Fallback for other authorities */}
-                    {selectedAuthority !== "mcgm" && Array.isArray(analysisResult.results) && (
-                      <div className="bg-[#1a1f2e] rounded-lg border border-slate-600 overflow-hidden mt-4">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="border-slate-600">
-                              <TableHead className="text-slate-300 font-medium">Filename</TableHead>
-                              <TableHead className="text-slate-300 font-medium">Result</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {analysisResult.results.map((item: any, idx: number) => (
-                              <TableRow key={idx} className="border-slate-600">
-                                <TableCell className="text-slate-200">{item.filename}</TableCell>
-                                <TableCell className="text-slate-200">{item.parsed || item.error || "-"}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-
-                    {/* Supabase Query Table for Site ID */}
-                    {siteId && (
-                      <div className="mt-10 bg-[#1a1f2e] rounded-lg border border-slate-600 overflow-hidden p-6">
-                        <h3 className="text-2xl font-bold text-white mb-2">Budget Table</h3>
-                        <SupabaseQueryTable siteId={siteId} onBudgetedCostPerMeter={setBudgetedCostPerMeter} onBudgetTableRow={setBudgetTableRow} />
-                      </div>
-                    )}
-
-                    {/* Projected Savings Cards Row */}
-                    <div className="flex flex-col md:flex-row gap-6 justify-center items-stretch w-full">
-                      <ProjectedSavingsCard
-                        budgetedCostPerMeter={(() => {
-                          // Get Total Cost (Without Deposit) and CE-Length-Mtr from budget table row
-                          if (budgetTableRow && budgetTableRow["Total Cost (Without Deposit)"] && budgetTableRow["CE-Length-Mtr"]) {
-                            const totalCost = parseFloat(budgetTableRow["Total Cost (Without Deposit)"])
-                            const length = parseFloat(budgetTableRow["CE-Length-Mtr"])
-                            if (!isNaN(totalCost) && !isNaN(length) && length > 0) {
-                              return parseFloat((totalCost / length).toFixed(2))
-                            }
-                          }
-                          return null
-                        })()}
-                        actualCostPerMeter={(() => {
-                          // Get total actual cost and section length from summary row of PDF table
-                          if (selectedAuthority === "mcgm" && Array.isArray(analysisResult?.results)) {
-                            let totalSectionLength: number = 0
-                            let totalActualCost = 0
-                            analysisResult.results.forEach((item: any) => {
-                              const sl = parseFloat(item.section_length)
-                              if (!isNaN(sl)) totalSectionLength += sl
-                              const ri = parseFloat(item.ri_cost)
-                              const material = !isNaN(sl) ? sl * 270 : 0
-                              const service = !isNaN(sl) ? sl * 1100 : 0
-                              if (!isNaN(ri)) totalActualCost += ri + material + service
-                            })
-                            if (totalSectionLength > 0) {
-                              return parseFloat((totalActualCost / totalSectionLength).toFixed(2))
-                            }
-                          }
-                          return null
-                        })()}
-                      />
-                      <ProjectedTotalSavingsCard
-                        totalBudget={(() => {
-                          // Projected savings per meter * total section length
-                          let savingsPerMeter = null;
-                          let budgetedPerMeter: number = 0;
-                          let actualPerMeter = null;
-                          let totalSectionLength: number = 0;
-                          let budgetedTotal = null;
-                          let actualTotal = null;
-                          if (
-                            budgetTableRow &&
-                            budgetTableRow["Total Cost (Without Deposit)"] &&
-                            budgetTableRow["CE-Length-Mtr"] &&
-                            Array.isArray(analysisResult?.results)
-                          ) {
-                            const totalCost = parseFloat(budgetTableRow["Total Cost (Without Deposit)"]);
-                            const length = parseFloat(budgetTableRow["CE-Length-Mtr"]);
-                            totalSectionLength = 0;
-                            analysisResult.results.forEach((item: any) => {
-                              const sl = parseFloat(item.section_length);
-                              if (!isNaN(sl)) totalSectionLength += sl;
-                            });
-                            if (!isNaN(totalCost) && !isNaN(length) && length > 0 && totalSectionLength > 0) {
-                              budgetedPerMeter = totalCost / length;
-                              budgetedTotal = budgetedPerMeter * totalSectionLength;
-                            }
-                            // Actual total
-                            let totalActualCost = 0;
-                            let totalActualSectionLength = 0;
-                            let totalActualPerMeter = null;
-                            analysisResult.results.forEach((item: any) => {
-                              const sl = parseFloat(item.section_length);
-                              const ri = parseFloat(item.ri_cost);
-                              const material = !isNaN(sl) ? sl * 270 : 0;
-                              const service = !isNaN(sl) ? sl * 1100 : 0;
-                              if (!isNaN(sl)) totalActualSectionLength += sl;
-                              if (!isNaN(ri)) totalActualCost += ri + material + service;
-                            });
-                            if (totalActualSectionLength > 0) {
-                              actualPerMeter = parseFloat((totalActualCost / totalActualSectionLength).toFixed(2));
-                              savingsPerMeter = budgetedPerMeter - actualPerMeter;
-                              actualTotal = totalActualCost;
-                              console.log({ budgetedPerMeter, actualPerMeter, savingsPerMeter, totalSectionLength, budgetedTotal, actualTotal });
-                              return parseFloat((savingsPerMeter * totalSectionLength).toFixed(2));
-                            }
-                          }
-                          console.log({ budgetedPerMeter, actualPerMeter, savingsPerMeter, totalSectionLength, budgetedTotal, actualTotal });
-                          return null;
-                        })()}
-                        budgetedTotal={(() => {
-                          if (
-                            budgetTableRow &&
-                            budgetTableRow["Total Cost (Without Deposit)"] &&
-                            budgetTableRow["CE-Length-Mtr"] &&
-                            Array.isArray(analysisResult?.results)
-                          ) {
-                            const totalCost = parseFloat(budgetTableRow["Total Cost (Without Deposit)"]);
-                            const length = parseFloat(budgetTableRow["CE-Length-Mtr"]);
-                            let totalSectionLength = 0;
-                            analysisResult.results.forEach((item: any) => {
-                              const sl = parseFloat(item.section_length);
-                              if (!isNaN(sl)) totalSectionLength += sl;
-                            });
-                            if (!isNaN(totalCost) && !isNaN(length) && length > 0 && totalSectionLength > 0) {
-                              const budgetedPerMeter = totalCost / length;
-                              return budgetedPerMeter * totalSectionLength;
-                            }
-                          }
-                          return null;
-                        })()}
-                        actualTotal={(() => {
-                          if (selectedAuthority === "mcgm" && Array.isArray(analysisResult?.results)) {
-                            let totalActualCost = 0;
-                            analysisResult.results.forEach((item: any) => {
-                              const sl = parseFloat(item.section_length);
-                              const ri = parseFloat(item.ri_cost);
-                              const material = !isNaN(sl) ? sl * 270 : 0;
-                              const service = !isNaN(sl) ? sl * 1100 : 0;
-                              if (!isNaN(ri)) totalActualCost += ri + material + service;
-                            });
-                            return totalActualCost;
-                          }
-                          return null;
-                        })()}
-                      />
+                    <div className="p-6 text-white">
+                      <AnalysisTableWithPopups data={mergedDns.filter(dn => new Date(dn.dn_received_date) < new Date(mergedDns[mergedDns.length - 1].dn_received_date))} budgetedCostPerMeter={budgetedCostPerMeter} />
                     </div>
-                    {/* Generate Budget Approval Request Button */}
-                    <div className="flex justify-center mt-8">
-                      <Button
-                        className="w-full max-w-xs bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white text-base font-bold shadow-lg px-6 py-4 flex items-center gap-2 transition-colors duration-150 justify-center rounded-none"
-                        onClick={() => setShowBudgetApprovalModal(true)}
-                        size="lg"
-                      >
-                        <BarChart3 className="h-5 w-5 text-white" />
-                        Generate Budget Approval Request
-                      </Button>
-                    </div>
-                    {/* Show the PremiumBudgetChart again */}
-                    {(() => {
-                      if (!budgetTableRow || !Array.isArray(analysisResult?.results) || !siteId) return null;
-                      // Budgeted values from Supabase
-                      const budgeted = {
-                        RI: parseFloat(budgetTableRow["Total RI Amount"]) || 0,
-                        Material: parseFloat(budgetTableRow["Material Cost"]) || 0,
-                        Service: parseFloat(budgetTableRow["Execution Cost  including HH"]) || 0,
-                      };
-                      // Actual values from cost table (sum across all DNs for this site)
-                      let actualRI = 0, actualMaterial = 0, actualService = 0;
-                      analysisResult.results.forEach((item: any) => {
-                        const sl = parseFloat(item.section_length);
-                        const ri = parseFloat(item.ri_cost);
-                        if (!isNaN(ri)) actualRI += ri;
-                        if (!isNaN(sl)) {
-                          actualMaterial += sl * 270;
-                          actualService += sl * 1100;
-                        }
-                      });
-                      const actual = {
-                        RI: actualRI,
-                        Material: actualMaterial,
-                        Service: actualService,
-                      };
-                      return <PremiumBudgetChart siteData={{ SiteID: siteId, budgeted, actual }} />;
-                    })()}
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                  <div className="w-full h-0.5 bg-white/80 my-8 rounded-full" />
+                  <div className="mb-8 bg-[#101624] shadow-2xl rounded-3xl border-none">
+                    <div className="border-b border-slate-800/60 pb-3 px-6 pt-4 bg-[#101624]">
+                      <h2 className="text-white text-2xl font-bold font-sans mb-2 mt-6">Current Analysis</h2>
+                    </div>
+                    <div className="p-6 text-white">
+                      <AnalysisTableWithPopups data={mergedDns.filter(dn => new Date(dn.dn_received_date) >= new Date(mergedDns[mergedDns.length - 1].dn_received_date))} budgetedCostPerMeter={budgetedCostPerMeter} />
+                    </div>
+                  </div>
+                  <div className="w-full h-0.5 bg-white/80 my-8 rounded-full" />
+                  <div className="mb-8 bg-[#101624] shadow-2xl rounded-3xl border-none">
+                    <div className="border-b border-slate-800/60 pb-3 px-6 pt-4 bg-[#101624]">
+                      <h2 className="text-white text-2xl font-bold font-sans mb-2 mt-6">Post Analysis</h2>
+                    </div>
+                    <div className="p-6 text-white">
+                      <AnalysisTableWithPopups data={mergedDns} budgetedCostPerMeter={budgetedCostPerMeter} />
+                    </div>
+                  </div>
+                  <div className="w-full h-0.5 bg-white/80 my-8 rounded-full" />
+
+                  {/* Budget Table Section (restored) */}
+                  <div className="mt-10 bg-[#1a1f2e] rounded-lg border border-slate-600 overflow-hidden p-6">
+                    <h3 className="text-2xl font-bold text-white mb-2">Budget Table</h3>
+                    <SupabaseQueryTable siteId={siteId} onBudgetedCostPerMeter={setBudgetedCostPerMeter} onBudgetTableRow={setBudgetTableRow} />
+                  </div>
+                  {budgetTableRow && (
+                    <div className="flex justify-center mt-6">
+                      <button
+                        className="flex items-center gap-3 bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 text-white font-bold px-8 py-4 rounded-xl shadow-lg text-lg transition-all"
+                        onClick={() => setShowBudgetApprovalModal(true)}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25H4.5a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-.659 1.591l-7.5 7.5a2.25 2.25 0 01-3.182 0l-7.5-7.5A2.25 2.25 0 012.25 6.993V6.75" />
+                        </svg>
+                        Generate Budget Approval Email
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
       <GenerateEmailDraftModal
         open={showBudgetApprovalModal}
         onClose={() => setShowBudgetApprovalModal(false)}
         defaultSubject={(() => {
           if (!budgetTableRow) return "";
-          return `Budget Approval Request for Site: ${budgetTableRow["SiteID"] || ""}`;
+          return `Budget Approval Request | Site: ${budgetTableRow["siteid_routeid"] || ""}`;
         })()}
         defaultBody={(() => {
           if (!budgetTableRow) return "";
-          return `Hello,\n\nI am requesting budget approval for Site: ${budgetTableRow["SiteID"] || ""}. Please review the attached budget details and approve as appropriate.`;
+          return `Hello,\n\nI am requesting budget approval for the following site:\n\n` +
+            `Site ID: ${budgetTableRow["siteid_routeid"] || "-"}\n` +
+            `Surveyed Length: ${budgetTableRow["ce_length_mtr"] || "-"} mtr\n` +
+            `RI Cost: ₹${budgetTableRow["total_ri_amount"] || "-"}\n` +
+            `Material Cost: ₹${budgetTableRow["material_cost"] || "-"}\n` +
+            `Service Cost: ₹${budgetTableRow["execution_cost_including_hh"] || "-"}\n` +
+            `Total Cost: ₹${budgetTableRow["total_cost_without_deposit"] || "-"}\n` +
+            `Total Cost Per Meter: ₹${budgetTableRow["total_cost_without_deposit"] && budgetTableRow["ce_length_mtr"] ? (parseFloat(budgetTableRow["total_cost_without_deposit"]) / parseFloat(budgetTableRow["ce_length_mtr"])) .toLocaleString(undefined, { maximumFractionDigits: 2 }) : "-"}/mtr\n\n` +
+            `Please review the above budget details and approve as appropriate.\n\nThank you.`;
         })()}
         summaryRow={budgetTableRow || {}}
       />
@@ -929,12 +849,14 @@ function SupabaseQueryTable({ siteId, onBudgetedCostPerMeter, onBudgetTableRow }
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const columns = [
-    "SiteID",
-    "CE-Length-Mtr",
-    "Total RI Amount",
-    "Material Cost",
-    "Execution Cost  including HH",
-    "Total Cost (Without Deposit)",
+    "siteid_routeid",
+    "ce_length_mtr",
+    "total_ri_amount",
+    "material_cost",
+    "execution_cost_including_hh",
+    "total_cost_without_deposit",
+    "survey_id",
+    "existing_new",
   ]
 
   useEffect(() => {
@@ -962,8 +884,8 @@ function SupabaseQueryTable({ siteId, onBudgetedCostPerMeter, onBudgetTableRow }
   // Helper to compute Budgeted Total Cost/Meter
   function getBudgetedCostPerMeter(row: any) {
     if (!row) return null
-    const totalCost = parseFloat(row["Total Cost (Without Deposit)"])
-    const length = parseFloat(row["CE-Length-Mtr"])
+    const totalCost = parseFloat(row["total_cost_without_deposit"])
+    const length = parseFloat(row["ce_length_mtr"])
     if (!isNaN(totalCost) && !isNaN(length) && length > 0) {
       return parseFloat((totalCost / length).toFixed(2))
     }
@@ -986,23 +908,25 @@ function SupabaseQueryTable({ siteId, onBudgetedCostPerMeter, onBudgetTableRow }
     "Material Cost",
     "Service Cost",
     "Total Cost",    
-    "Total Cost Per Meter",
+    "Total Cost/Meter",
+    "Existing/New",
   ]
 
-  const totalCost = d?.["Total Cost (Without Deposit)"]
-  const surveyedLength = d?.["CE-Length-Mtr"]
+  const totalCost = d?.["total_cost_without_deposit"]
+  const surveyedLength = d?.["ce_length_mtr"]
   const totalCostPerMeter = (typeof totalCost === 'number' && typeof surveyedLength === 'number' && surveyedLength > 0)
     ? (totalCost / surveyedLength).toFixed(2)
     : "-"
 
   const displayValues = [
-    d?.["SiteID"] || siteId,
-    d?.["CE-Length-Mtr"],
-    d?.["Total RI Amount"],
-    d?.["Material Cost"],
-    d?.["Execution Cost  including HH"],
-    d?.["Total Cost (Without Deposit)"],
+    d?.["siteid_routeid"] || siteId,
+    d?.["ce_length_mtr"],
+    d?.["total_ri_amount"],
+    d?.["material_cost"],
+    d?.["execution_cost_including_hh"],
+    d?.["total_cost_without_deposit"],
     totalCostPerMeter,
+    d?.["existing_new"],
   ]
 
   return (
@@ -1013,22 +937,24 @@ function SupabaseQueryTable({ siteId, onBudgetedCostPerMeter, onBudgetTableRow }
         <div className="text-red-400 text-sm mt-2">Site ID not found in database.</div>
       )}
       {!loading && !error && data && !(Array.isArray(data) && data.length === 0) && (
-        <Table>
-          <TableHeader>
-            <TableRow className="border-slate-600">
-              {displayColumns.map((col) => (
-                <TableHead key={col} className="text-slate-300 font-medium text-center px-2 py-2 text-base">{col}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow className="border-slate-600">
-              {displayValues.map((val, idx) => (
-                <TableCell key={idx} className="text-white font-mono text-center px-2 py-2 text-base">{val ?? "-"}</TableCell>
-              ))}
-            </TableRow>
-          </TableBody>
-        </Table>
+        <div className="w-full max-w-none overflow-x-visible rounded-lg border border-slate-700 bg-[#181f2a] mt-2">
+          <Table className="w-full text-left max-w-none">
+            <TableHeader>
+              <TableRow className="border-slate-600">
+                {displayColumns.map((col) => (
+                  <TableHead key={col} className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-base">{col}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow className="border-slate-600">
+                {displayValues.map((val, idx) => (
+                  <TableCell key={idx} className="text-white font-sans text-center px-2 py-2 text-base">{val ?? "-"}</TableCell>
+                ))}
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
       )}
     </>
   )
@@ -1060,7 +986,7 @@ function ProjectedSavingsCard({ budgetedCostPerMeter, actualCostPerMeter }: { bu
         {savings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₹/m
       </div>
       <div className="mt-1 text-white/80 text-xs font-inter">
-        (Budgeted: <span className="font-mono text-white/90">{budgetedCostPerMeter}</span> ₹/m &nbsp;|&nbsp; Actual: <span className="font-mono text-white/90">{actualCostPerMeter}</span> ₹/m)
+        (Budgeted: <span className="font-sans text-white/90">{budgetedCostPerMeter}</span> ₹/m &nbsp;|&nbsp; Actual: <span className="font-sans text-white/90">{actualCostPerMeter}</span> ₹/m)
       </div>
     </div>
   )
@@ -1093,5 +1019,77 @@ function ProjectedTotalSavingsCard({ totalBudget, budgetedTotal, actualTotal }: 
         (Budgeted: {budgetedTotal?.toLocaleString(undefined, { maximumFractionDigits: 2 })} ₹ | Actual: {actualTotal?.toLocaleString(undefined, { maximumFractionDigits: 2 })} ₹)
       </div>
     </div>
+  );
+}
+
+// Reusable analysis table with popups
+function AnalysisTableWithPopups({ data, budgetedCostPerMeter }: { data: any[], budgetedCostPerMeter: number | null }) {
+  if (!data || data.length === 0) {
+    return <div className="text-red-400 text-sm mt-2">No DNs found for this selection.</div>;
+  }
+  let totalLength = 0, totalCost = 0;
+  data.forEach(row => {
+    const dnLength = Number(row.dn_length_mtr) || 0;
+    const nonRefundable = Number(row.actual_total_non_refundable) || 0;
+    const materialsCost = dnLength * 270;
+    const serviceCost = dnLength * 1100;
+    const rowTotalCost = nonRefundable + materialsCost + serviceCost;
+    totalLength += dnLength;
+    totalCost += rowTotalCost;
+  });
+  const totalCostPerMeterCurrent = totalLength > 0 ? totalCost / totalLength : null;
+  const totalCostPerMeterBudget = budgetedCostPerMeter;
+  const projectedSavingsPerMeter = (typeof totalCostPerMeterBudget === 'number' && typeof totalCostPerMeterCurrent === 'number')
+    ? totalCostPerMeterBudget - totalCostPerMeterCurrent
+    : null;
+  return (
+    <>
+      <Table className="w-full mx-auto text-xs">
+        <TableHeader>
+          <TableRow className="border-slate-600">
+            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">DN Number</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">DN Date</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">DN Length</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Non Refundable Cost</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Materials Cost</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Service Cost</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Total Cost</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Total Cost/Meter</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Proj. Savings/Meter</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Proj. Savings</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.map((row, idx) => {
+            const dnLength = Number(row.dn_length_mtr) || 0;
+            const nonRefundable = Number(row.actual_total_non_refundable) || 0;
+            const materialsCost = dnLength * 270;
+            const serviceCost = dnLength * 1100;
+            const totalCost = nonRefundable + materialsCost + serviceCost;
+            const totalCostPerMeter = dnLength ? totalCost / dnLength : null;
+            const projSavingsPerMtr = (typeof totalCostPerMeterBudget === 'number' && typeof totalCostPerMeter === 'number')
+              ? totalCostPerMeterBudget - totalCostPerMeter
+              : null;
+            const projSavings = (typeof projSavingsPerMtr === 'number' && dnLength > 0)
+              ? projSavingsPerMtr * dnLength
+              : null;
+            return (
+              <TableRow key={idx} className="border-slate-700 py-3">
+                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{row.dn_number || "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{row.dn_received_date ? new Date(row.dn_received_date).toLocaleDateString() : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{dnLength || "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{Number.isFinite(nonRefundable) ? `₹${nonRefundable.toLocaleString()}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{materialsCost ? `₹${materialsCost.toLocaleString()}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{serviceCost ? `₹${serviceCost.toLocaleString()}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{totalCost ? `₹${totalCost.toLocaleString()}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{totalCostPerMeter ? `₹${totalCostPerMeter.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{projSavingsPerMtr ? `₹${projSavingsPerMtr.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{projSavings ? `₹${projSavings.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </>
   );
 }

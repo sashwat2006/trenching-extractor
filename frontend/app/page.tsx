@@ -62,7 +62,7 @@ export default function Home() {
     setSuccess(null);
     try {
       // TODO: Replace with your Supabase upload logic
-      // await supabase.from("budget_lmc").upsert(preview);
+      // await supabase.from("budget_master").upsert(preview);
       setSuccess("Budget uploaded successfully!");
     } catch (err: any) {
       setError(err.message || "Upload failed");

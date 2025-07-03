@@ -62,7 +62,7 @@ HEADERS = [
     "Total Amount as per capping MB(Not in Partner Scope)",
     "Cost type (way leave charges/ rent/ license etc)",
     "Permission Type (Primary/ Secondary)",
-    "Additional Remarks"
+    "Additional Remarks",
 ]
 
 STATIC_VALUES = {
@@ -352,16 +352,46 @@ def extract_gst_from_text(text):
 def extract_multiplication_factor_from_tables(tables):
     def normalize(s):
         return s.replace('\n', '').replace(' ', '').lower()
+    factors = []
     for idx, table in enumerate(tables):
         df = table.df
         for col_idx, col_name in enumerate(df.iloc[0]):
             if "multiplyingfactor" in normalize(col_name):
                 for i in range(2, len(df)):
                     val = df.iloc[i, col_idx].replace('\n', '').replace(',', '').strip()
-                    if val and "Total" not in val:
-                        return val
+                    first_col = str(df.iloc[i, 0]).strip().lower()
+                    # Only append if val is numeric, not 'Total', and first column is not empty or a summary
+                    if val and "total" not in val.lower() and first_col and "total" not in first_col:
+                        try:
+                            float_val = float(val)
+                            factors.append(val)
+                        except ValueError:
+                            continue
                 break
-    return ""
+    return ' / '.join(factors)
+
+def extract_surface_wise_length_from_tables(tables):
+    """
+    Extracts the surface-wise lengths from Camelot tables for MCGM DNs.
+    Returns a string like '135 / 5' (order as found in tables).
+    """
+    lengths = []
+    for table in tables:
+        df = table.df
+        # Try to find the column index for 'Length' or 'Length in Mt.'
+        length_col_idx = None
+        for idx, col in enumerate(df.iloc[0]):
+            if 'length' in col.lower():
+                length_col_idx = idx
+                break
+        if length_col_idx is not None:
+            # Find the first row after header that looks like a number
+            for i in range(2, len(df)):
+                val = df.iloc[i, length_col_idx].replace('\n', '').replace(',', '').strip()
+                if val and val.replace('.', '', 1).isdigit():
+                    lengths.append(val)
+                    break
+    return ' / '.join(lengths)
 
 def non_refundable_request_parser(pdf_path, manual_values=None):
     """
@@ -395,6 +425,8 @@ def non_refundable_request_parser(pdf_path, manual_values=None):
     section_length = extract_section_length_from_tables(tables)
     covered_under_capping = extract_covered_under_capping(text, tables)
     not_part_of_capping = extract_not_part_of_capping(text, tables)
+    surface_wise_length = extract_surface_wise_length_from_tables(tables)
+    print(f"[DEBUG] [mcgm] surface_wise_length: {surface_wise_length}")
     row = []
     for header in HEADERS:
         if header not in STATIC_VALUES and header not in [
@@ -451,6 +483,12 @@ def non_refundable_request_parser(pdf_path, manual_values=None):
             if field in HEADERS:
                 idx = HEADERS.index(field)
                 row[idx] = value
+    # After building the row, print all extracted fields for debugging
+    extracted_fields = dict(zip(HEADERS, row))
+    print("\n[DEBUG] [mcgm] ALL EXTRACTED FIELDS:")
+    for k, v in extracted_fields.items():
+        print(f"  {k}: {v}")
+    print("[DEBUG] [mcgm] END EXTRACTED FIELDS\n")
     return row
 
 def sd_parser(pdf_path, manual_values=None):
@@ -511,7 +549,7 @@ def extract_all_fields_for_testing(pdf_path):
         "GST Amount": extract_gst_amount(text),
         "GST Amount (from text)": extract_gst_amount_from_text(text),
         "SD Amount": extract_sd_amount_from_text(text),
-        "ROW APPLICATION DATE": extract_row_application_date(text),
+        "ROW APPLICATION  DATE": extract_row_application_date(text),
         "DN Received Date": extract_row_application_date(text),
         "Demand Note Date": extract_demand_note_date(text),
         "Difference Days": extract_difference_days(extract_demand_note_date(text)),
@@ -520,7 +558,7 @@ def extract_all_fields_for_testing(pdf_path):
             "Non Refundable Cost( Amount to process for payment shold be sum of 'Z' and 'AA' coulm )": extract_covered_under_capping(text, tables)
         }),
         "Road Types": extract_road_types_from_tables(tables),
-        "Rate in Rs": extract_rate_in_rs_from_tables(tables),
+        "Surface-wise RI Amount": extract_rate_in_rs_from_tables(tables),
         "Covered under capping": extract_covered_under_capping(text, tables),
         "Not part of capping": extract_not_part_of_capping(text, tables),
         "Non Refundable Cost": extract_covered_under_capping(text, tables),
@@ -530,7 +568,10 @@ def extract_all_fields_for_testing(pdf_path):
         "Supervision Charges": extract_supervision_charges_from_text(text),
         "Chamber Fee": extract_chamber_fee_from_text(text),
         "GST (custom)": extract_gst_from_text(text),
-        "Multiplication Factor": extract_multiplication_factor_from_tables(tables),
+        "Surface-wise Multiplication Factor": extract_multiplication_factor_from_tables(tables),
+        # Extra fields for validation table only (not in main output row):
+        "surface_wise_length": extract_surface_wise_length_from_tables(tables),
+        # Add more extra fields here as needed
     }
     print("\n" + "*"*60)
     print("[DEBUG] [mcgm] EXTRACTED FIELDS (START)")

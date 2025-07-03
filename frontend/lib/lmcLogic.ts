@@ -3,40 +3,48 @@ import { supabase } from "@/utils/supabaseClient";
 
 // Supabase headers and numeric columns
 export const supabaseHeaders = [
-  "SiteID",
-  "CE-Length-Mtr",
-  "RI Cost per Meter",
-  "Material  Cost Per Meter",
-  "Build Cost Per Meter",
-  "Total RI Amount",
-  "Material Cost",
-  "Execution Cost  including HH",
-  "Total Cost (Without Deposit)",
-  "Route Type"
+  "id",
+  "siteid_routeid",
+  "ce_length_mtr",
+  "ri_cost_per_meter",
+  "material_cost_per_meter",
+  "build_cost_per_meter",
+  "total_ri_amount",
+  "material_cost",
+  "execution_cost_including_hh",
+  "total_cost_without_deposit",
+  "route_type",
+  "survey_id",
+  "existing_new",
 ];
 
 export const numericColumns = new Set([
-  "CE-Length-Mtr",
-  "RI Cost per Meter",
-  "Material  Cost Per Meter",
-  "Build Cost Per Meter",
-  "Total RI Amount",
-  "Material Cost",
-  "Execution Cost  including HH",
-  "Total Cost (Without Deposit)"
+  "ce_length_mtr",
+  "ri_cost_per_meter",
+  "material_cost_per_meter",
+  "build_cost_per_meter",
+  "total_ri_amount",
+  "material_cost",
+  "execution_cost_including_hh",
+  "total_cost_without_deposit",
+  "survey_id",
+  "existing_new",
 ]);
 
 export type BudgetData = {
-  SiteID: string;
-  "CE-Length-Mtr": number | null;
-  "RI Cost per Meter": number | null;
-  "Material  Cost Per Meter": number | null;
-  "Build Cost Per Meter": number | null;
-  "Total RI Amount": number | null;
-  "Material Cost": number | null;
-  "Execution Cost  including HH": number | null;
-  "Total Cost (Without Deposit)": number | null;
-  "Route Type": string | null;
+  id?: number;
+  siteid_routeid: string | null;
+  ce_length_mtr: number | null;
+  ri_cost_per_meter: number | null;
+  material_cost_per_meter: number | null;
+  build_cost_per_meter: number | null;
+  total_ri_amount: number | null;
+  material_cost: number | null;
+  execution_cost_including_hh: number | null;
+  total_cost_without_deposit: number | null;
+  route_type: string | null;
+  survey_id: string | null;
+  existing_new: string | null;
 };
 
 // Parse and clean Excel file
@@ -66,13 +74,13 @@ export function cleanRow(row: any) {
   const cleaned: any = {};
   for (const key of supabaseHeaders) {
     const foundKey = Object.keys(row).find(
-      k => k.replace(/\s+/g, ' ').trim() === key.replace(/\s+/g, ' ').trim()
+      k => k.replace(/\s+/g, ' ').trim().toLowerCase() === key.replace(/\s+/g, ' ').trim().toLowerCase()
     );
     let value = foundKey ? row[foundKey] : null;
-    if (numericColumns.has(key)) {
-      if (value === "" || value === undefined) {
-        value = null;
-      } else if (typeof value === "number") {
+    if (value === "" || value === undefined) {
+      value = null;
+    } else if (numericColumns.has(key)) {
+      if (typeof value === "number") {
         value = Math.round(value * 100) / 100;
       } else if (!isNaN(Number(value))) {
         value = Math.round(Number(value) * 100) / 100;
@@ -85,31 +93,48 @@ export function cleanRow(row: any) {
 
 // Deduplicate by SiteID (keep last occurrence)
 export function dedupeBySiteId(rows: any[]) {
-  return Array.from(new Map(rows.map(row => [row["SiteID"], row])).values());
+  return Array.from(new Map(rows.map(row => [row["siteid_routeid"], row])).values());
+}
+
+// Force all empty strings in an object to null
+export function forceNulls(obj: any) {
+  for (const k in obj) {
+    if (obj[k] === "") obj[k] = null;
+  }
+  // Always remove id (autoincrementing PK)
+  delete obj.id;
+  return obj;
 }
 
 // Upload to Supabase (upsert)
 export async function uploadToSupabase(rows: any[]) {
-  const deduped = dedupeBySiteId(rows);
-  const siteIds = deduped.map(row => row["SiteID"]);
+  console.time('dedupeBySiteId');
+  const deduped = dedupeBySiteId(rows).map(forceNulls);
+  console.timeEnd('dedupeBySiteId');
+  const siteIds = deduped.map(row => row["siteid_routeid"]);
   // Delete all rows not in the uploaded SiteIDs
   if (siteIds.length > 0) {
+    console.time('supabaseDelete');
     await supabase
-      .from("budget_lmc")
+      .from("budget_master")
       .delete()
-      .not("SiteID", "in", `(${siteIds.map(id => `'${id}'`).join(",")})`);
+      .not("siteid_routeid", "in", `(${siteIds.map(id => `'${id}'`).join(",")})`);
+    console.timeEnd('supabaseDelete');
   }
   // Upsert the new/updated rows
-  return await supabase
-    .from("budget_lmc")
-    .upsert(deduped, { onConflict: "SiteID" });
+  console.time('supabaseUpsert');
+  const result = await supabase
+    .from("budget_master")
+    .upsert(deduped, { onConflict: "siteid_routeid" });
+  console.timeEnd('supabaseUpsert');
+  return result;
 }
 
 // Query by SiteID
 export async function queryBySiteId(siteId: string, columns: string[]) {
   return await supabase
-    .from("budget_lmc")
-    .select(columns.map(col => `"${col}"`).join(", "))
-    .eq("SiteID", siteId)
+    .from("budget_master")
+    .select(columns.join(","))
+    .eq("siteid_routeid", siteId)
     .maybeSingle();
 } 
