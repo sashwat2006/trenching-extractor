@@ -3,13 +3,13 @@ import re
 import camelot
 
 APPLICATION_HEADERS = [
-    "Application Number",
-    "Application Length (Mtr)",
-    "Application Date",
-    "From",
-    "To",
-    "Authority",
-    "Ward"
+    "application_number",
+    "application_length_mtr",
+    "application_date",
+    "from_location",
+    "to_location",
+    "authority",
+    "ward"
 ]
 
 def extract_application_number(text):
@@ -93,8 +93,7 @@ def mcgm_application_parser(pdf_path):
         extract_ward(text)
     ]
     result = dict(zip(APPLICATION_HEADERS, row))
-    result["Road Name"] = extract_road_name(text)
-    result["road_name"] = result["Road Name"]
+    result["road_name"] = extract_road_name(text)
     print("📋 MCGM APPLICATION EXTRACTED:", result)
     return result
 

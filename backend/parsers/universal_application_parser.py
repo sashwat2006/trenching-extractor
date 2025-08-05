@@ -18,15 +18,24 @@ def extract_application_number(text):
     return match.group(1).strip() if match else ""
 
 def extract_application_length(text, table_dict=None):
+    print("🔍 DEBUG: extract_application_length - Starting extraction...")
+    
     # 1. Try table: look for 'Total Route Length' column
     if table_dict:
+        print("🔍 DEBUG: extract_application_length - Trying table extraction...")
         val = extract_from_table(table_dict, [r"Total Route Length", r"Length.*\(HDD.*Open Trench.*\)", r"Total.*Length"])
         if val:
+            print(f"🔍 DEBUG: extract_application_length - Found in table: '{val}'")
             # Extract number from the value
             match = re.search(r'(\d+)', val)
             if match:
-                return match.group(1)
+                result = match.group(1)
+                print(f"✅ DEBUG: extract_application_length - Extracted from table: '{result}'")
+                return result
+            print(f"✅ DEBUG: extract_application_length - Using table value as-is: '{val}'")
             return val
+        else:
+            print("❌ DEBUG: extract_application_length - Not found in table")
     
     # 2. Enhanced patterns for text extraction
     patterns = [
@@ -38,19 +47,131 @@ def extract_application_length(text, table_dict=None):
         r"Length of trench[\s\S]*?(\d+(?:\.\d+)?)\s*mtrs"  # Original pattern
     ]
     
-    for pattern in patterns:
+    print("🔍 DEBUG: extract_application_length - Trying text patterns...")
+    for i, pattern in enumerate(patterns):
+        print(f"🔍 DEBUG: extract_application_length - Pattern {i+1}: {pattern}")
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            return match.group(1)
+            result = match.group(1)
+            print(f"✅ DEBUG: extract_application_length - Pattern {i+1} matched: '{result}'")
+            return result
+        else:
+            print(f"❌ DEBUG: extract_application_length - Pattern {i+1} failed")
     
     # 3. Fallback: sum up all numbers after 'Length of trench' in text
+    print("🔍 DEBUG: extract_application_length - Trying fallback pattern...")
     matches = re.findall(r"Length of trench[\s\S]*?(\d+(?:\.\d+)?)\s*mtrs", text, re.IGNORECASE)
-    total = sum(float(m) for m in matches) if matches else 0
-    return str(int(total)) if total else ""
+    if matches:
+        total = sum(float(m) for m in matches)
+        result = str(int(total))
+        print(f"✅ DEBUG: extract_application_length - Fallback matched: '{result}' (sum of {matches})")
+        return result
+    
+    print("❌ DEBUG: extract_application_length - No patterns matched")
+    return ""
 
-def extract_application_date(text):
-    match = re.search(r"Date\s*[:\-]?\s*([0-9]{2}[./-][0-9]{2}[./-][0-9]{4})", text)
-    return match.group(1).replace('.', '/').replace('-', '/') if match else ""
+def extract_application_date(text, table_dict=None):
+    print("🔍 DEBUG: extract_application_date - Starting extraction...")
+    
+    import re
+    from datetime import datetime
+    if table_dict:
+        print("🔍 DEBUG: extract_application_date - Trying table extraction...")
+        val = extract_from_table(table_dict, [r"Date"])
+        if val:
+            print(f"🔍 DEBUG: extract_application_date - Found in table: '{val}'")
+            # Try to parse and reformat if possible
+            try:
+                dt = datetime.strptime(val.strip(), "%d-%m-%Y")
+                result = dt.strftime("%d-%m-%Y")
+                print(f"✅ DEBUG: extract_application_date - Parsed from table: '{result}'")
+                return result
+            except Exception as e:
+                print(f"⚠️ DEBUG: extract_application_date - Could not parse table date: {e}")
+                print(f"✅ DEBUG: extract_application_date - Using table value as-is: '{val}'")
+                return val
+        else:
+            print("❌ DEBUG: extract_application_date - Not found in table")
+    
+    print("🔍 DEBUG: extract_application_date - Trying text patterns...")
+    
+    # 1. Robust regex for 'Date' at the start of a line
+    pattern1 = r"^\s*Date\s*[:\-]*\s*([0-9]{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+[0-9]{4})"
+    print(f"🔍 DEBUG: extract_application_date - Pattern 1: {pattern1}")
+    match = re.search(pattern1, text, re.IGNORECASE | re.MULTILINE)
+    if match:
+        date_str = match.group(1)
+        date_str = re.sub(r"(st|nd|rd|th)", "", date_str)
+        try:
+            dt = datetime.strptime(date_str.strip(), "%d %B %Y")
+            result = dt.strftime("%d-%m-%Y")
+            print(f"✅ DEBUG: extract_application_date - Pattern 1 matched (full month): '{result}'")
+            return result
+        except Exception as e:
+            print(f"⚠️ DEBUG: extract_application_date - Pattern 1 failed full month parse: {e}")
+            try:
+                dt = datetime.strptime(date_str.strip(), "%d %b %Y")
+                result = dt.strftime("%d-%m-%Y")
+                print(f"✅ DEBUG: extract_application_date - Pattern 1 matched (abbreviated month): '{result}'")
+                return result
+            except Exception as e2:
+                print(f"⚠️ DEBUG: extract_application_date - Pattern 1 failed abbreviated month parse: {e2}")
+                print(f"✅ DEBUG: extract_application_date - Using raw date: '{date_str.strip()}'")
+                return date_str.strip()
+    
+    # 2. Backup: search first 10 lines for a date-like pattern
+    print("🔍 DEBUG: extract_application_date - Trying first 10 lines pattern...")
+    lines = text.splitlines()[:10]
+    pattern2 = r"([0-9]{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+[0-9]{4})"
+    print(f"🔍 DEBUG: extract_application_date - Pattern 2: {pattern2}")
+    for i, line in enumerate(lines):
+        print(f"🔍 DEBUG: extract_application_date - Checking line {i+1}: '{line[:50]}...'")
+        m = re.search(pattern2, line)
+        if m:
+            date_str = m.group(1)
+            date_str = re.sub(r"(st|nd|rd|th)", "", date_str)
+            try:
+                dt = datetime.strptime(date_str.strip(), "%d %B %Y")
+                result = dt.strftime("%d-%m-%Y")
+                print(f"✅ DEBUG: extract_application_date - Pattern 2 matched line {i+1} (full month): '{result}'")
+                return result
+            except Exception as e:
+                print(f"⚠️ DEBUG: extract_application_date - Pattern 2 failed full month parse line {i+1}: {e}")
+                try:
+                    dt = datetime.strptime(date_str.strip(), "%d %b %Y")
+                    result = dt.strftime("%d-%m-%Y")
+                    print(f"✅ DEBUG: extract_application_date - Pattern 2 matched line {i+1} (abbreviated month): '{result}'")
+                    return result
+                except Exception as e2:
+                    print(f"⚠️ DEBUG: extract_application_date - Pattern 2 failed abbreviated month parse line {i+1}: {e2}")
+                    print(f"✅ DEBUG: extract_application_date - Using raw date from line {i+1}: '{date_str.strip()}'")
+                    return date_str.strip()
+    
+    # 3. Fallback: try dd/mm/yyyy or dd-mm-yyyy
+    print("🔍 DEBUG: extract_application_date - Trying dd/mm/yyyy pattern...")
+    pattern3 = r"([0-9]{2}[./-][0-9]{2}[./-][0-9]{4})"
+    print(f"🔍 DEBUG: extract_application_date - Pattern 3: {pattern3}")
+    match2 = re.search(pattern3, text)
+    if match2:
+        try:
+            dt = datetime.strptime(match2.group(1), "%d/%m/%Y")
+            result = dt.strftime("%d-%m-%Y")
+            print(f"✅ DEBUG: extract_application_date - Pattern 3 matched (dd/mm/yyyy): '{result}'")
+            return result
+        except Exception as e:
+            print(f"⚠️ DEBUG: extract_application_date - Pattern 3 failed dd/mm/yyyy parse: {e}")
+            try:
+                dt = datetime.strptime(match2.group(1), "%d-%m-%Y")
+                result = dt.strftime("%d-%m-%Y")
+                print(f"✅ DEBUG: extract_application_date - Pattern 3 matched (dd-mm-yyyy): '{result}'")
+                return result
+            except Exception as e2:
+                print(f"⚠️ DEBUG: extract_application_date - Pattern 3 failed dd-mm-yyyy parse: {e2}")
+                print(f"✅ DEBUG: extract_application_date - Using raw date: '{match2.group(1)}'")
+                return match2.group(1)
+    
+    print("❌ DEBUG: extract_application_date - No patterns matched")
+    return ""
 
 def extract_from(text):
     # Look for "2.   Exact location of starting point", then colon, then value on next line
@@ -179,10 +300,16 @@ def extract_from_table(table_dict, field_patterns):
 # Updated field extraction using table first, then fallback to text
 
 def extract_application_number(text, table_dict=None):
+    print("🔍 DEBUG: extract_application_number - Starting extraction...")
+    
     if table_dict:
+        print("🔍 DEBUG: extract_application_number - Trying table extraction...")
         val = extract_from_table(table_dict, [r"Application Number", r"Reference"])
         if val:
+            print(f"✅ DEBUG: extract_application_number - Found in table: '{val}'")
             return val
+        else:
+            print("❌ DEBUG: extract_application_number - Not found in table")
     
     # Enhanced patterns for application number extraction
     patterns = [
@@ -192,26 +319,41 @@ def extract_application_number(text, table_dict=None):
         r"([A-Za-z]+\/[A-Za-z0-9\-\/\_]+\/[0-9]{4}\-[0-9]{2}\/[A-Za-z0-9\-\/\_]+)"  # Pattern like Airtel/OSP/2025-26/OT/KDMC/...
     ]
     
-    for pattern in patterns:
+    print("🔍 DEBUG: extract_application_number - Trying text patterns...")
+    for i, pattern in enumerate(patterns):
+        print(f"🔍 DEBUG: extract_application_number - Pattern {i+1}: {pattern}")
         match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
         if match:
             result = match.group(1).strip()
             # Clean up the result
             result = re.sub(r'\s+', ' ', result)  # Replace multiple spaces with single space
+            print(f"✅ DEBUG: extract_application_number - Pattern {i+1} matched: '{result}'")
             return result
+        else:
+            print(f"❌ DEBUG: extract_application_number - Pattern {i+1} failed")
     
+    print("❌ DEBUG: extract_application_number - No patterns matched")
     return ""
 
 def extract_application_length(text, table_dict=None):
+    print("🔍 DEBUG: extract_application_length - Starting extraction...")
+    
     # 1. Try table: look for 'Total Route Length' column
     if table_dict:
+        print("🔍 DEBUG: extract_application_length - Trying table extraction...")
         val = extract_from_table(table_dict, [r"Total Route Length", r"Length.*\(HDD.*Open Trench.*\)", r"Total.*Length"])
         if val:
+            print(f"🔍 DEBUG: extract_application_length - Found in table: '{val}'")
             # Extract number from the value
             match = re.search(r'(\d+)', val)
             if match:
-                return match.group(1)
+                result = match.group(1)
+                print(f"✅ DEBUG: extract_application_length - Extracted from table: '{result}'")
+                return result
+            print(f"✅ DEBUG: extract_application_length - Using table value as-is: '{val}'")
             return val
+        else:
+            print("❌ DEBUG: extract_application_length - Not found in table")
     
     # 2. Enhanced patterns for text extraction
     patterns = [
@@ -223,67 +365,27 @@ def extract_application_length(text, table_dict=None):
         r"Length of trench[\s\S]*?(\d+(?:\.\d+)?)\s*mtrs"  # Original pattern
     ]
     
-    for pattern in patterns:
+    print("🔍 DEBUG: extract_application_length - Trying text patterns...")
+    for i, pattern in enumerate(patterns):
+        print(f"🔍 DEBUG: extract_application_length - Pattern {i+1}: {pattern}")
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            return match.group(1)
+            result = match.group(1)
+            print(f"✅ DEBUG: extract_application_length - Pattern {i+1} matched: '{result}'")
+            return result
+        else:
+            print(f"❌ DEBUG: extract_application_length - Pattern {i+1} failed")
     
     # 3. Fallback: sum up all numbers after 'Length of trench' in text
+    print("🔍 DEBUG: extract_application_length - Trying fallback pattern...")
     matches = re.findall(r"Length of trench[\s\S]*?(\d+(?:\.\d+)?)\s*mtrs", text, re.IGNORECASE)
-    total = sum(float(m) for m in matches) if matches else 0
-    return str(int(total)) if total else ""
-
-def extract_application_date(text, table_dict=None):
-    import re
-    from datetime import datetime
-    if table_dict:
-        val = extract_from_table(table_dict, [r"Date"])
-        if val:
-            # Try to parse and reformat if possible
-            try:
-                dt = datetime.strptime(val.strip(), "%d-%m-%Y")
-                return dt.strftime("%d-%m-%Y")
-            except Exception:
-                pass
-            return val
-    # 1. Robust regex for 'Date' at the start of a line
-    match = re.search(r"^\s*Date\s*[:\-]*\s*([0-9]{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+[0-9]{4})", text, re.IGNORECASE | re.MULTILINE)
-    if match:
-        date_str = match.group(1)
-        date_str = re.sub(r"(st|nd|rd|th)", "", date_str)
-        try:
-            dt = datetime.strptime(date_str.strip(), "%d %B %Y")
-            return dt.strftime("%d-%m-%Y")
-        except Exception:
-            try:
-                dt = datetime.strptime(date_str.strip(), "%d %b %Y")
-                return dt.strftime("%d-%m-%Y")
-            except Exception:
-                return date_str.strip()
-    # 2. Backup: search first 10 lines for a date-like pattern
-    lines = text.splitlines()[:10]
-    for line in lines:
-        m = re.search(r"([0-9]{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+[0-9]{4})", line)
-        if m:
-            date_str = m.group(1)
-            date_str = re.sub(r"(st|nd|rd|th)", "", date_str)
-            try:
-                dt = datetime.strptime(date_str.strip(), "%d %B %Y")
-                return dt.strftime("%d-%m-%Y")
-            except Exception:
-                try:
-                    dt = datetime.strptime(date_str.strip(), "%d %b %Y")
-                    return dt.strftime("%d-%m-%Y")
-                except Exception:
-                    return date_str.strip()
-    # 3. Fallback: try dd/mm/yyyy or dd-mm-yyyy
-    match2 = re.search(r"([0-9]{2}[./-][0-9]{2}[./-][0-9]{4})", text)
-    if match2:
-        try:
-            dt = datetime.strptime(match2.group(1).replace("/", "-").replace(".", "-"), "%d-%m-%Y")
-            return dt.strftime("%d-%m-%Y")
-        except Exception:
-            return match2.group(1)
+    if matches:
+        total = sum(float(m) for m in matches)
+        result = str(int(total))
+        print(f"✅ DEBUG: extract_application_length - Fallback matched: '{result}' (sum of {matches})")
+        return result
+    
+    print("❌ DEBUG: extract_application_length - No patterns matched")
     return ""
 
 def extract_from(text, table_dict=None, pdf_path=None):
@@ -532,40 +634,112 @@ def extract_road_name(text, table_dict=None):
     return road_name
 
 def universal_application_parser(pdf_path):
+    print("🔍 DEBUG: Starting universal application parser for:", pdf_path)
+    
     doc = fitz.open(pdf_path)
     text = "\n".join(page.get_text() for page in doc)
     doc.close()
 
+    print("\n" + "="*80)
+    print("📄 FULL EXTRACTED TEXT:")
+    print("="*80)
+    print(text)
+    print("="*80)
+    print("END OF EXTRACTED TEXT")
+    print("="*80 + "\n")
 
     # Try robust table extraction first
+    print("🔍 DEBUG: Attempting table extraction...")
     table_result = robust_application_table_parse(pdf_path)
     if table_result:
+        print("✅ DEBUG: Table extraction successful!")
+        print("📊 DEBUG: Table data:", table_result)
+        
         # Extract all fields using table first, fallback to text
+        print("\n🔍 DEBUG: Extracting fields with table data...")
+        
+        app_number = extract_application_number(text, table_result)
+        print(f"📝 DEBUG: Application Number: '{app_number}'")
+        
+        app_length = extract_application_length(text, table_result)
+        print(f"📏 DEBUG: Application Length: '{app_length}'")
+        
+        app_date = extract_application_date(text, table_result)
+        print(f"📅 DEBUG: Application Date: '{app_date}'")
+        
+        from_location = extract_from(text, table_result, pdf_path)
+        print(f"📍 DEBUG: From: '{from_location}'")
+        
+        to_location = extract_to(text, table_result, pdf_path)
+        print(f"🎯 DEBUG: To: '{to_location}'")
+        
+        ward = extract_ward(text, table_result, pdf_path)
+        print(f"🏛️ DEBUG: Ward: '{ward}'")
+        
+        road_name = extract_road_name(text, table_result)
+        print(f"🛣️ DEBUG: Road Name: '{road_name}'")
+        
         extracted = {
-            "Application Number": extract_application_number(text, table_result),
-            "Application Length (Mtr)": extract_application_length(text, table_result),
-            "Application Date": extract_application_date(text, table_result),
-            "From": extract_from(text, table_result, pdf_path),
-            "To": extract_to(text, table_result, pdf_path),
-            "Ward": extract_ward(text, table_result, pdf_path),
-            "Road Name": extract_road_name(text, table_result)
+            "application_number": app_number,
+            "application_length_mtr": app_length,
+            "application_date": app_date,
+            "from_location": from_location,
+            "to_location": to_location,
+            "ward": ward,
+            "road_name": road_name
         }
-        extracted["road_name"] = extracted["Road Name"]
-        print("📋 UNIVERSAL APPLICATION EXTRACTED:", extracted)
+        
+        print("\n" + "="*80)
+        print("📋 FINAL EXTRACTED DATA (WITH TABLE):")
+        print("="*80)
+        for key, value in extracted.items():
+            print(f"{key}: '{value}'")
+        print("="*80)
+        
         return extracted
 
     # Fallback: Use text extraction
+    print("⚠️ DEBUG: Table extraction failed, using text extraction...")
+    print("\n🔍 DEBUG: Extracting fields from text only...")
+    
+    app_number = extract_application_number(text)
+    print(f"📝 DEBUG: Application Number: '{app_number}'")
+    
+    app_length = extract_application_length(text)
+    print(f"📏 DEBUG: Application Length: '{app_length}'")
+    
+    app_date = extract_application_date(text)
+    print(f"📅 DEBUG: Application Date: '{app_date}'")
+    
+    from_location = extract_from(text)
+    print(f"📍 DEBUG: From: '{from_location}'")
+    
+    to_location = extract_to(text)
+    print(f"🎯 DEBUG: To: '{to_location}'")
+    
+    ward = extract_ward(text)
+    print(f"🏛️ DEBUG: Ward: '{ward}'")
+    
+    road_name = extract_road_name(text)
+    print(f"🛣️ DEBUG: Road Name: '{road_name}'")
+    
     extracted = {
-        "Application Number": extract_application_number(text),
-        "Application Length (Mtr)": extract_application_length(text),
-        "Application Date": extract_application_date(text),
-        "From": extract_from(text),
-        "To": extract_to(text),
-        "Ward": extract_ward(text),
-        "Road Name": extract_road_name(text)
+        "application_number": app_number,
+        "application_length_mtr": app_length,
+        "application_date": app_date,
+        "from_location": from_location,
+        "to_location": to_location,
+        "ward": ward,
+        "road_name": road_name
     }
-    extracted["road_name"] = extracted["Road Name"]
-    print("📋 UNIVERSAL APPLICATION EXTRACTED (TEXT):", extracted)
+    
+    print("\n" + "="*80)
+    print("📋 FINAL EXTRACTED DATA (TEXT ONLY):")
+    print("="*80)
+    for key, value in extracted.items():
+        print(f"{key}: '{value}'")
+    print("="*80)
+    
     return extracted
 
 if __name__ == "__main__":
