@@ -393,7 +393,7 @@ export default function DnManagementSection() {
 
   useEffect(() => {
     // Removed debug logging
-  }, [poRowRouteType, poRowNoIp1, poRowNoCoBuild, poRowRouteLM, poLengthIp1, poLengthCoBuild]);
+  }, [poRowRouteType, poRowNoIp1, poRowNoCoBuild, poLengthIp1, poLengthCoBuild]);
 
   // Log when PO Number Type dropdown changes
   useEffect(() => {
@@ -609,6 +609,7 @@ export default function DnManagementSection() {
       setValidateError("Please upload all files and fill all required fields.");
       return;
     }
+    // Use route_routeLM_metroLM_LMCStandalone for IP1 vs Co-Built validation
     if (poRowRouteLM.replace(/\s+/g, '').toLowerCase() === 'route' && !poNumberTypeConfirmed) {
       console.log("❌ Validation failed - PO Number Type not confirmed for Route");
       setPoNumberTypeError("Please confirm your PO Number Type selection (IP1 or Co-Built).");
@@ -1340,7 +1341,7 @@ export default function DnManagementSection() {
     if (field === "po_number") {
       console.log(`🔍 getValidateParserFieldValue("po_number") called`);
       console.log(`  - poSiteId: ${poSiteId}`);
-      console.log(`  - poRowRouteLM: "${poRowRouteLM}"`);
+      console.log(`  - poRowRouteType: "${poRowRouteType}"`);
       console.log(`  - poNumberTypeConfirmed: "${poNumberTypeConfirmed}"`);
       console.log(`  - poRowNoIp1: "${poRowNoIp1}"`);
       console.log(`  - poRowNoCoBuild: "${poRowNoCoBuild}"`);
@@ -1349,10 +1350,11 @@ export default function DnManagementSection() {
         console.log(`  ❌ No poSiteId - returning warning`);
         return "⚠️ Please select a Site ID first";
       }
-      const routeType = poRowRouteLM.replace(/\s+/g, '').toLowerCase();
-      console.log(`  - Normalized routeType: "${routeType}"`);
+      // Use route_routeLM_metroLM_LMCStandalone for PO number logic
+      const routeTypeForPoLogic = poRowRouteLM.replace(/\s+/g, '').toLowerCase();
+      console.log(`  - Normalized routeTypeForPoLogic: "${routeTypeForPoLogic}"`);
       
-      if (routeType === 'route') {
+      if (routeTypeForPoLogic === 'route') {
         // For Route type, use the confirmed PO number type
         if (poNumberTypeConfirmed === 'IP1') {
           // If IP1 is empty, fall back to Co-Built
@@ -1380,7 +1382,7 @@ export default function DnManagementSection() {
     if (field === "po_length") {
       console.log(`🔍 getValidateParserFieldValue("po_length") called`);
       console.log(`  - poSiteId: ${poSiteId}`);
-      console.log(`  - poRowRouteLM: "${poRowRouteLM}"`);
+      console.log(`  - poRowRouteType: "${poRowRouteType}"`);
       console.log(`  - poNumberTypeConfirmed: "${poNumberTypeConfirmed}"`);
       console.log(`  - poLengthIp1: "${poLengthIp1}"`);
       console.log(`  - poLengthCoBuild: "${poLengthCoBuild}"`);
@@ -1389,10 +1391,11 @@ export default function DnManagementSection() {
         console.log(`  ❌ No poSiteId - returning warning`);
         return "⚠️ Please select a Site ID first";
       }
-      const routeType = poRowRouteLM.replace(/\s+/g, '').toLowerCase();
-      console.log(`  - Normalized routeType: "${routeType}"`);
+      // Use route_routeLM_metroLM_LMCStandalone for PO length logic
+      const routeTypeForPoLogic = poRowRouteLM.replace(/\s+/g, '').toLowerCase();
+      console.log(`  - Normalized routeTypeForPoLogic: "${routeTypeForPoLogic}"`);
       
-      if (routeType === 'route') {
+      if (routeTypeForPoLogic === 'route') {
         // For Route type, use the confirmed PO number type
         if (poNumberTypeConfirmed === 'IP1') {
           // If IP1 is empty, fall back to Co-Built
@@ -1420,10 +1423,11 @@ export default function DnManagementSection() {
     // Removed survey_id logic - no longer needed with one budget per route
     
     if (field === "ip1_co_built") {
-      const routeType = poRowRouteLM.replace(/\s+/g, '').toLowerCase();
+      // Use route_routeLM_metroLM_LMCStandalone for IP1 vs Co-Built logic only
+      const routeTypeForPoLogic = poRowRouteLM.replace(/\s+/g, '').toLowerCase();
       
-      if (routeType === 'route') {
-        // If route_type is Route, use the PO number type user selection
+      if (routeTypeForPoLogic === 'route') {
+        // If route_routeLM_metroLM_LMCStandalone is Route, use the PO number type user selection
         if (poNumberTypeConfirmed === 'IP1') {
           return 'IP1';
         } else if (poNumberTypeConfirmed === 'Co-Built') {
@@ -1432,7 +1436,7 @@ export default function DnManagementSection() {
           return 'Co-Built';
         }
       } else {
-        // If route_type is NOT Route, always return Co-Built
+        // If route_routeLM_metroLM_LMCStandalone is NOT Route, always return Co-Built
         return 'Co-Built';
       }
     }
@@ -1440,9 +1444,10 @@ export default function DnManagementSection() {
 
     
           if (field === "build_type") {
-        const routeType = poRowRouteLM.replace(/\s+/g, '').toLowerCase();
+        // Use route_routeLM_metroLM_LMCStandalone for build_type logic
+        const routeTypeForPoLogic = poRowRouteLM.replace(/\s+/g, '').toLowerCase();
         
-        if (routeType !== 'route') {
+        if (routeTypeForPoLogic !== 'route') {
           return 'New-Build';
         }
         
@@ -1454,9 +1459,10 @@ export default function DnManagementSection() {
       }
       
       if (field === "category_type") {
-        const routeType = poRowRouteLM.replace(/\s+/g, '').toLowerCase();
+        // Use route_routeLM_metroLM_LMCStandalone for category_type logic
+        const routeTypeForPoLogic = poRowRouteLM.replace(/\s+/g, '').toLowerCase();
         
-        if (routeType !== 'route') {
+        if (routeTypeForPoLogic !== 'route') {
           return 'Non-Strategic';
         }
         
@@ -1470,23 +1476,20 @@ export default function DnManagementSection() {
     // Hardcoded fields
     if (field === "route_routeLM_metroLM_LMCStandalone") return poRowRouteLM;
     
-    // Handle route_type logic - same as route_routeLM_metroLM_LMCStandalone
+    // Handle route_type logic - use po_master.route_type instead of route_routeLM_metroLM_LMCStandalone
     if (field === "route_type") {
-      // Force return the route value regardless of what's in validation results
-      return poRowRouteLM;
+      // Return the route_type from PO master
+      return poRowRouteType;
     }
     
-    // Handle lmc_route logic - make it the same as route_type
-    if (field === "lmc_route") {
-      // Force return the route value regardless of what's in validation results
-      return poRowRouteLM;
-    }
+
     
     if (field === "dn_recipient") {
-      const routeType = poRowRouteLM.replace(/\s+/g, '').toLowerCase();
+      // Use route_routeLM_metroLM_LMCStandalone for dn_recipient logic
+      const routeTypeForPoLogic = poRowRouteLM.replace(/\s+/g, '').toLowerCase();
       
-      if (routeType === 'route') {
-        // If route_type is Route, use the PO number type user selection
+      if (routeTypeForPoLogic === 'route') {
+        // If route_routeLM_metroLM_LMCStandalone is Route, use the PO number type user selection
         if (poNumberTypeConfirmed === 'IP1') {
         return "CE";
         } else if (poNumberTypeConfirmed === 'Co-Built') {
@@ -1495,7 +1498,7 @@ export default function DnManagementSection() {
           return "Airtel";
         }
       } else {
-        // If route_type is NOT Route, always return Airtel
+        // If route_routeLM_metroLM_LMCStandalone is NOT Route, always return Airtel
       return "Airtel";
       }
     }
@@ -1778,6 +1781,7 @@ export default function DnManagementSection() {
     setSendToMasterDNSuccess(null);
     setSendToMasterDNError(null);
     setPoNumberTypeError(null);
+    // Use route_routeLM_metroLM_LMCStandalone for IP1 vs Co-Built validation
     if (poRowRouteLM.replace(/\s+/g, '').toLowerCase() === 'route' && !poNumberTypeConfirmed) {
       setPoNumberTypeError("Please confirm your PO Number Type selection (IP1 or Co-Built).");
       setSendingToMasterDN(false);
@@ -1843,6 +1847,7 @@ export default function DnManagementSection() {
   // Remove old logic that sets isRouteSelected in fetchSurveyIdsAndCheckRoute
   // Instead, add this useEffect:
   useEffect(() => {
+    // Use route_routeLM_metroLM_LMCStandalone for route selection logic
     const isRoute = poRowRouteLM.replace(/\s+/g, '').toLowerCase() === 'route';
     setIsRouteSelected(isRoute);
   }, [poRowRouteLM]);
@@ -2215,6 +2220,7 @@ export default function DnManagementSection() {
             <div className="flex-1 flex flex-col">
               {/* PO Number Type Dropdown for Route - now top-aligned with Survey ID(s) */}
               {(() => {
+                // Use route_routeLM_metroLM_LMCStandalone for UI rendering logic
                 const isRoute = poRowRouteLM.replace(/\s+/g, '').toLowerCase() === 'route';
                 return isRoute;
               })() && (

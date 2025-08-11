@@ -78,7 +78,7 @@ app.include_router(actual_cost_extraction_router)
 # app.include_router(dn_master_upload_router)
 
 DN_MASTER_COLUMNS = [
-    "sr_no", "route_type", "lmc_route", "ip1_co_built", "dn_recipient", "project_name", "site_id", "uid",
+    "sr_no", "route_type", "ip1_co_built", "dn_recipient", "project_name", "site_id", "uid",
     "build_type", "category_type", "po_number", "po_length", "route_id_lmc_id",
     "parent_route", "route_lmc_id", "route_lmc_section_id", "route_lmc_subsection_id", "application_number",
     "application_length_mtr", "application_date", "from_location", "to_location", "authority", "ward",
@@ -96,8 +96,7 @@ DN_MASTER_COLUMNS = [
 FIELD_MAP = {
     "sr_no": "sr_no",
     "route_type": "route_type",
-    "lmc_route": "lmc_route",
-    "route_routeLM_metroLM_LMCStandalone": "lmc_route",
+    "route_routeLM_metroLM_LMCStandalone": "route_routeLM_metroLM_LMCStandalone",
     "ip1_co_built": "ip1_co_built",
     "dn_recipient": "dn_recipient",
     "project_name": "project_name",
@@ -189,7 +188,7 @@ FIELD_MAP = {
 
 # Add this near the top, after FIELD_MAP or DN_MASTER_COLUMNS
 VALIDATE_PARSER_FIELDS = [
-    'sr_no', 'route_type', 'lmc_route', 'ip1_co_built', 'dn_recipient', 'project_name', 'route_id_site_id', 'uid',
+    'sr_no', 'route_type', 'ip1_co_built', 'dn_recipient', 'project_name', 'route_id_site_id', 'uid',
     'build_type', 'category_type', 'po_number', 'po_length', 'parent_route', 'ce_route_lmc_id',
     'route_lmc_section_id', 'route_lmc_subsection_id', 'application_number', 'application_length_mtr', 'application_date',
     'from_location', 'to_location', 'authority', 'ward', 'dn_number', 'dn_length_mtr', 'dn_received_date', 'trench_type',
@@ -752,19 +751,20 @@ async def parse_dn_file(
         if response.data and len(response.data) > 0:
             po_row = response.data[0]
 
-        # Fetch budget fields for build_type, category_type, and route_type
+        # Fetch budget fields for build_type, category_type, and ri_cost_per_meter
         budget_row = None
-        route_type_budget = ''
         try:
-            budget_resp = supabase.table("budget_master").select("build_type", "category_type", "ri_cost_per_meter", "route_type").eq("route_id_site_id", used_site_id).execute()
+            budget_resp = supabase.table("budget_master").select("build_type", "category_type", "ri_cost_per_meter").eq("route_id_site_id", used_site_id).execute()
             if budget_resp.data and len(budget_resp.data) > 0:
                 budget_row = budget_resp.data[0]
-                route_type_budget = clean_value(budget_row.get('route_type', ''))
         except Exception as e:
             pass
-        # Determine if this is a route using budget_master.route_type
-        route_type_budget_norm = route_type_budget.replace(" ","").replace("\n","").lower()
-        is_route = route_type_budget_norm == "route"
+        
+        # Get route_type from PO master instead of budget master
+        route_type_po = clean_value(po_row.get('route_type', '')) if po_row else ''
+        # Determine if this is a route using po_master.route_type
+        route_type_po_norm = route_type_po.replace(" ","").replace("\n","").lower()
+        is_route = route_type_po_norm == "route"
 
         # Get user input for PO Number Type (IP1 or Co-Built)
         po_number_type = ''
@@ -813,7 +813,7 @@ async def parse_dn_file(
             po_length = clean_value(po_row.get('po_length_ip1', "")) if po_row else ''
 
         # --- ENSURE route_type_val is always defined ---
-        route_type_val = route_type_budget  # Always set from budget_master
+        route_type_val = route_type_po  # Always set from po_master
         # Removed survey_id_val - no longer needed with one budget per route
         # --- ENSURE po_no is always a string and never has .00 ---
         def po_number_str(val):
@@ -1012,7 +1012,7 @@ def download_master_dn():
     df = df.fillna("")
     # Reorder columns to ensure new permit columns are present and in order
     column_order = [
-        "route_type", "lmc_route", "ip1_co_built", "dn_recipient", "project_name", "route_id_site_id", "uid",
+        "route_type", "ip1_co_built", "dn_recipient", "project_name", "route_id_site_id", "uid",
         "build_type", "category_type", "po_number", "po_length", "parent_route",
         "ce_route_lmc_id", "route_lmc_section_id", "route_lmc_subsection_id", "application_number",
         "application_length_mtr", "application_date", "from_location", "to_location", "authority", "ward",
@@ -1093,7 +1093,7 @@ async def upload_dn_master(file: UploadFile = File(...)):
 
     # 2. Define your required DB columns (should match your dn_master schema)
     required_columns = [
-        "route_type", "lmc_route", "ip1_co_built", "dn_recipient", "project_name", "route_id_site_id", "uid",
+        "route_type", "ip1_co_built", "dn_recipient", "project_name", "route_id_site_id", "uid",
         "build_type", "category_type", "po_number", "po_length", "parent_route",
         "ce_route_lmc_id", "route_lmc_section_id", "route_lmc_subsection_id", "application_number",
         "application_length_mtr", "application_date", "from_location", "to_location", "authority", "ward",
@@ -2142,11 +2142,11 @@ PRETTY_TO_CANONICAL_FIELD_MAP = {v: k for k, v in FIELD_MAP.items()}
 @app.get("/api/route-ids")
 def get_route_ids():
     """
-    Returns all unique route IDs (uid) from dn_master where lmc_route == 'Route'.
+    Returns all unique route IDs (uid) from dn_master where route_type == 'Route'.
     """
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        response = supabase.table("dn_master").select("uid, lmc_route").eq("lmc_route", "Route").execute()
+        response = supabase.table("dn_master").select("uid, route_type").eq("route_type", "Route").execute()
         data = response.data or []
         route_ids = list({row["uid"] for row in data if row.get("uid")})
         return {"route_ids": route_ids}

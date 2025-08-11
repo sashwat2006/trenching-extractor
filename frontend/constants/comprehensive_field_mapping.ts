@@ -26,7 +26,7 @@ export const ALL_VALIDATION_FIELDS = [
     'proj_savings_per_dn', 'surface_wise_length', 'surface_wise_ri_amount', 'surface_wise_multiplication_factor',
     
     // Empty/optional fields (usually empty)
-    'lmc_route', 'build_type', 'category_type', 'ce_route_lmc_id', 'route_lmc_section_id', 
+    'build_type', 'category_type', 'ce_route_lmc_id', 'route_lmc_section_id', 
     'route_lmc_subsection_id', 'authority', 'dn_number', 'dn_length_mtr', 'dn_received_date', 'trench_type',
     'ot_length', 'dn_ri_amount', 'ground_rent', 'administrative_charge', 'supervision_charges', 'chamber_fee', 'gst',
     'new_revised_dn_number', 'new_revised_dn_against', 'internal_approval_start', 'internal_approval_end',
@@ -90,7 +90,6 @@ export function mapParserToStandard(parserFields: Record<string, any>, authority
     // Authority-specific field mappings
     const authorityMappings: Record<string, Record<string, string>> = {
         "nmmc": {
-            "lmc_route": "route_type",  // Make lmc_route the same as route_type
             "rate_per_meter": "surface_wise_ri_amount",
 
             "section_length": "dn_length_mtr",
@@ -114,7 +113,6 @@ export function mapParserToStandard(parserFields: Record<string, any>, authority
             "surface_wise_length": "surface_wise_length",
         },
         "kdmc": {
-            "lmc_route": "route_type",  // Make lmc_route the same as route_type
             "rate_per_meter": "surface_wise_ri_amount",
             "section_length": "dn_length_mtr",
             "security_deposit": "deposit",
@@ -146,7 +144,6 @@ export function mapParserToStandard(parserFields: Record<string, any>, authority
             "ri_amount": "dn_ri_amount",
         },
         "mcgm": {
-            "lmc_route": "route_type",  // Make lmc_route the same as route_type
             "dn_number": "dn_number",
             "dn_received_date": "dn_received_date",
             "dn_length_mtr": "dn_length_mtr",
@@ -170,7 +167,6 @@ export function mapParserToStandard(parserFields: Record<string, any>, authority
             "ri_rate_go_rs": "surface_wise_ri_amount",  // Map GO rate to surface-wise RI amount
         },
         "mbmc": {
-            "lmc_route": "route_type",  // Make lmc_route the same as route_type
             "rate_in_rs": "surface_wise_ri_amount",
             "section_length": "dn_length_mtr",
             "sd_amount": "deposit",
@@ -246,15 +242,7 @@ export function mapParserToStandard(parserFields: Record<string, any>, authority
         }
     }
     
-    // Special handling for lmc_route - make it the same as route_type
-    if (standardFields["route_type"] && !standardFields["lmc_route"]) {
-        standardFields["lmc_route"] = standardFields["route_type"];
-    } else if (standardFields["lmc_route"] && !standardFields["route_type"]) {
-        standardFields["route_type"] = standardFields["lmc_route"];
-    } else if (standardFields["route_type"] && standardFields["lmc_route"]) {
-        // If both exist, make lmc_route the same as route_type
-        standardFields["lmc_route"] = standardFields["route_type"];
-    }
+
     
     return standardFields;
 }
@@ -273,7 +261,6 @@ export function convertStandardToTable(standardFields: Record<string, any>, tabl
         displayNames = {
             // Map standard field names to display names
             "route_type": "Route Type",
-            "lmc_route": "LMC Route",
             "ip1_co_built": "IP1 Co Built",
             "dn_recipient": "DN Recipient",
             "project_name": "Project Name",

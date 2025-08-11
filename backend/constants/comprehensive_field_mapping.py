@@ -10,7 +10,7 @@ Ensures complete coverage of all fields used in the system.
 
 # All fields that can appear in the validation parsers table
 ALL_VALIDATION_FIELDS = [
-    'route_type', 'lmc_route', 'ip1_co_built', 'dn_recipient', 'project_name', 'route_id_site_id', 'uid',
+    'route_type', 'ip1_co_built', 'dn_recipient', 'project_name', 'route_id_site_id', 'uid',
     'build_type', 'category_type', 'survey_id', 'po_number', 'po_length', 'parent_route', 'ce_route_lmc_id',
     'route_lmc_section_id', 'route_lmc_subsection_id', 'application_number', 'application_length_mtr', 'application_date',
     'from_location', 'to_location', 'authority', 'ward', 'dn_number', 'dn_length_mtr', 'dn_received_date', 'trench_type',
@@ -82,7 +82,6 @@ def get_comprehensive_field_mapping():
     standard_fields = {
         # Basic Information
         "route_type": "route_type",
-        "lmc_route": "lmc_route",
         "ip1_co_built": "ip1_co_built",
         "dn_recipient": "dn_recipient",
         "project_name": "project_name",
@@ -151,7 +150,6 @@ def get_comprehensive_field_mapping():
         # Map standard field names to display names
         "sr_no": "Sr No",
         "route_type": "Route Type",
-        "lmc_route": "LMC Route",
         "ip1_co_built": "IP1 Co Built",
         "dn_recipient": "DN Recipient",
         "project_name": "Project Name",
@@ -220,7 +218,6 @@ def get_comprehensive_field_mapping():
     authority_mappings = {
         "nmmc": {
             # NMMC-specific field names to standard field names
-            "lmc_route": "route_type",  # Make lmc_route the same as route_type
             "rate_per_meter": "surface_wise_ri_amount",
             "multiplying_factor": "surface_wise_multiplication_factor",
             "section_length": "dn_length_mtr",
@@ -245,7 +242,6 @@ def get_comprehensive_field_mapping():
         },
         "kdmc": {
             # KDMC-specific field names to standard field names
-            "lmc_route": "route_type",  # Make lmc_route the same as route_type
             "rate_per_meter": "surface_wise_ri_amount",
             "section_length": "dn_length_mtr",  # Fixed: should map to dn_length_mtr
             "security_deposit": "deposit",
@@ -293,7 +289,6 @@ def get_comprehensive_field_mapping():
         },
         "mcgm": {
             # MCGM parser already uses standard field names, so map them to themselves
-            "lmc_route": "route_type",  # Make lmc_route the same as route_type
             "dn_number": "dn_number",
             "dn_received_date": "dn_received_date",
             "dn_length_mtr": "dn_length_mtr",
@@ -317,7 +312,6 @@ def get_comprehensive_field_mapping():
         },
         "mbmc": {
             # MBMC-specific field names to standard field names
-            "lmc_route": "route_type",  # Make lmc_route the same as route_type
             "rate_in_rs": "surface_wise_ri_amount",
             "section_length": "dn_length_mtr",
             "sd_amount": "deposit",
@@ -417,14 +411,7 @@ def map_parser_to_standard(parser_fields: dict, authority: str) -> dict:
             # If conversion fails, keep original value
             pass
     
-    # Special handling for lmc_route - make it the same as route_type
-    if "route_type" in standard_fields and "lmc_route" not in standard_fields:
-        standard_fields["lmc_route"] = standard_fields["route_type"]
-    elif "lmc_route" in standard_fields and "route_type" not in standard_fields:
-        standard_fields["route_type"] = standard_fields["lmc_route"]
-    elif "route_type" in standard_fields and "lmc_route" in standard_fields:
-        # If both exist, make lmc_route the same as route_type
-        standard_fields["lmc_route"] = standard_fields["route_type"]
+
     
     # Debug: Print final standard fields for MCGM
     if authority.lower() == "mcgm":
