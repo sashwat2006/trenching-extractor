@@ -688,15 +688,38 @@ export default function LmcPage() {
                     )}
                   </div>
                 </div>
-                {/* Confirm Button */}
+                {/* Confirm/Reset Button */}
                 <div className="flex-shrink-0">
-                  <Button
-                    onClick={handleConfirmSiteId}
-                    className="border border-blue-500 text-blue-400 font-semibold px-6 h-12 rounded-lg hover:bg-blue-600/10 transition"
-                    type="button"
-                  >
-                    Confirm
-                  </Button>
+                  {!confirmedSiteId ? (
+                    <Button
+                      onClick={handleConfirmSiteId}
+                      className="border border-blue-500 text-blue-400 font-semibold px-6 h-12 rounded-lg hover:bg-blue-600/10 transition"
+                      type="button"
+                    >
+                      Confirm
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => {
+                        setConfirmedSiteId("");
+                        setSiteIdInputValue("");
+                        setAnalysisTriggered(false);
+                        setIsRoute(false);
+                        setSurveyIdOptions([]);
+                        setSelectedSurveyIds([]);
+                        setSurveySelectionConfirmed(false);
+                        setQueryResult(null);
+                        setQueryError(null);
+                        setQueryLoading(false);
+                        setBudgetedCostPerMeter(null);
+                        setBudgetTableRow(null);
+                      }}
+                      className="border border-red-500 text-red-400 font-semibold px-6 h-12 rounded-lg hover:bg-red-600/10 transition"
+                      type="button"
+                    >
+                      Reset
+                    </Button>
+                  )}
                 </div>
                   {/* Survey ID MultiSelect */}
                   {isRoute && (
