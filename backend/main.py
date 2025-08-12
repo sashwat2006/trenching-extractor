@@ -2142,13 +2142,15 @@ PRETTY_TO_CANONICAL_FIELD_MAP = {v: k for k, v in FIELD_MAP.items()}
 @app.get("/api/route-ids")
 def get_route_ids():
     """
-    Returns all unique route IDs (uid) from dn_master where route_type == 'Route'.
+    Returns all unique route_id_site_id values from dn_master where route_type is 'DC Route' or 'Additional Route'.
     """
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        response = supabase.table("dn_master").select("uid, route_type").eq("route_type", "Route").execute()
+        # Query for both DC Route and Additional Route types
+        response = supabase.table("dn_master").select("route_id_site_id, route_type").in_("route_type", ["DC Route", "Additional Route"]).execute()
         data = response.data or []
-        route_ids = list({row["uid"] for row in data if row.get("uid")})
+        route_ids = list({row["route_id_site_id"] for row in data if row.get("route_id_site_id")})
+        print(f"[ROUTE_IDS] Found {len(route_ids)} unique route_id_site_id values for DC Route and Additional Route types")
         return {"route_ids": route_ids}
     except Exception as e:
         print(f"[ERROR] Failed to fetch route ids: {e}")

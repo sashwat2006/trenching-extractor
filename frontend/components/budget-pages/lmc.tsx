@@ -570,15 +570,16 @@ export default function LmcPage() {
     setConfirmedSiteId(siteIdInputValue.trim());
     console.log('confirmedSiteId set to:', siteIdInputValue.trim());
     setAnalysisTriggered(false);
-    // Query dn_master for lmc_route
+    // Query dn_master for route_type to check if it's DC Route or Additional Route
     const { data, error } = await supabase
       .from('dn_master')
-      .select('lmc_route, survey_id')
+      .select('route_type, survey_id')
       .eq('route_id_site_id', siteIdInputValue.trim());
     if (!error && data && data.length > 0) {
-      const lmcRoute = data[0].lmc_route;
-      console.log('lmcRoute from database:', lmcRoute);
-      if (String(lmcRoute).replace(/\s+/g, '').toLowerCase() === 'route') {
+      const routeType = data[0].route_type;
+      console.log('route_type from database:', routeType);
+      // Check if route_type is "DC Route" or "Additional Route"
+      if (routeType === 'DC Route' || routeType === 'Additional Route') {
         setIsRoute(true);
         // Get all unique survey_ids for this site
         const uniqueSurveyIds = Array.from(new Set(data.map((row: any) => row.survey_id).filter(Boolean)));
@@ -589,7 +590,7 @@ export default function LmcPage() {
         setIsRoute(false);
         setSurveyIdOptions([]);
         setSelectedSurveyIds([]);
-        console.log('Set isRoute to false');
+        console.log('Set isRoute to false - route_type is:', routeType);
       }
     } else {
       setIsRoute(false);
