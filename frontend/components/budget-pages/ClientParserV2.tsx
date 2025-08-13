@@ -68,7 +68,7 @@ export default function ClientParserV2() {
         const fallbackAuthorities = [
           { id: 'mcgm', name: 'MCGM', fullName: 'Municipal Corporation of Greater Mumbai' },
           { id: 'nmmc', name: 'NMMC', fullName: 'Navi Mumbai Municipal Corporation' },
-          { id: 'mbmc', name: 'MBMC', fullName: 'Miraj-Budhrod Municipal Corporation' },
+          { id: 'mbmc', name: 'MBMC', fullName: 'Mira-Bhayandar Municipal Corporation' },
           { id: 'kdmc', name: 'KDMC', fullName: 'Kalyan Dombivli Municipal Corporation' },
           { id: 'midc', name: 'MIDC', fullName: 'Maharashtra Industrial Development Corporation' }
         ]
@@ -80,7 +80,7 @@ export default function ClientParserV2() {
       const fallbackAuthorities = [
         { id: 'mcgm', name: 'MCGM', fullName: 'Municipal Corporation of Greater Mumbai' },
         { id: 'nmmc', name: 'NMMC', fullName: 'Navi Mumbai Municipal Corporation' },
-        { id: 'mbmc', name: 'MBMC', fullName: 'Miraj-Budhrod Municipal Corporation' },
+        { id: 'mbmc', name: 'MBMC', fullName: 'Mira-Bhayandar Municipal Corporation' },
         { id: 'kdmc', name: 'KDMC', fullName: 'Kalyan Dombivli Municipal Corporation' },
         { id: 'midc', name: 'MIDC', fullName: 'Maharashtra Industrial Development Corporation' }
       ]
@@ -112,7 +112,7 @@ export default function ClientParserV2() {
     const fullNames: Record<string, string> = {
       'MCGM': 'Municipal Corporation of Greater Mumbai',
       'NMMC': 'Navi Mumbai Municipal Corporation',
-      'MBMC': 'Miraj-Budhrod Municipal Corporation',
+      'MBMC': 'Mira-Bhayandar Municipal Corporation',
       'KDMC': 'Kalyan Dombivli Municipal Corporation',
       'MIDC': 'Maharashtra Industrial Development Corporation'
     }
