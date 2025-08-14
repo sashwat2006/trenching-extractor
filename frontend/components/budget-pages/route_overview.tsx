@@ -50,20 +50,19 @@ function RouteOverviewAnalysisTable({ data, budgetedCostPerMeter, tableStyle }: 
     : null;
   return (
     <>
-      <div className="w-full overflow-x-auto rounded-lg border border-slate-700 bg-[#181f2a] mt-2">
-        <Table className="w-full mx-auto text-xs min-w-full" style={tableStyle}>
+      <Table className="w-full mx-auto text-xs" style={tableStyle}>
         <TableHeader>
           <TableRow className="border-slate-600">
-            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">DN Number</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">DN Date</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">DN Length</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Non Refundable Cost</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Materials Cost</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Service Cost</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Total Cost</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Total Cost/Meter</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Proj. Savings/Meter</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium px-2 py-2 text-base">Proj. Savings</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-1 py-2 text-sm text-center" style={{ whiteSpace: 'nowrap', minWidth: '80px' }}>DN No.</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-1 py-2 text-sm text-center" style={{ whiteSpace: 'nowrap', minWidth: '90px' }}>DN Date</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-1 py-2 text-sm text-center" style={{ whiteSpace: 'nowrap', minWidth: '80px' }}>DN Length</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-1 py-2 text-sm text-center" style={{ whiteSpace: 'nowrap', minWidth: '100px' }}>RI Cost</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-1 py-2 text-sm text-center" style={{ whiteSpace: 'nowrap', minWidth: '90px' }}>Materials</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-1 py-2 text-sm text-center" style={{ whiteSpace: 'nowrap', minWidth: '80px' }}>Service</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-1 py-2 text-sm text-center" style={{ whiteSpace: 'nowrap', minWidth: '100px' }}>Total Cost</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-1 py-2 text-sm text-center" style={{ whiteSpace: 'nowrap', minWidth: '120px' }}>Total Cost/Mtr</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-1 py-2 text-sm text-center" style={{ whiteSpace: 'nowrap', minWidth: '130px' }}>Proj. Savings/Mtr</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium px-1 py-2 text-sm text-center" style={{ whiteSpace: 'nowrap', minWidth: '130px' }}>Proj. Savings</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -82,35 +81,34 @@ function RouteOverviewAnalysisTable({ data, budgetedCostPerMeter, tableStyle }: 
             const rowBudgetedTotal = (typeof totalCostPerMeterBudget === 'number' && dnLength > 0) ? totalCostPerMeterBudget * dnLength : null;
             const projSavings = (typeof rowBudgetedTotal === 'number' && typeof totalCost === 'number') ? rowBudgetedTotal - totalCost : null;
             return (
-              <TableRow key={idx} className="border-slate-700 py-3">
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3 whitespace-nowrap">{row.dn_number || "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3 whitespace-nowrap">{row.dn_received_date ? new Date(row.dn_received_date).toLocaleDateString() : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3 whitespace-nowrap">{dnLength || "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3 whitespace-nowrap">{Number.isFinite(nonRefundable) ? `₹${nonRefundable.toLocaleString()}` : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3 whitespace-nowrap">{materialsCost ? `₹${materialsCost.toLocaleString()}` : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3 whitespace-nowrap">{serviceCost ? `₹${serviceCost.toLocaleString()}` : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3 whitespace-nowrap">{totalCost ? `₹${totalCost.toLocaleString()}` : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3 whitespace-nowrap">{totalCostPerMeter ? `₹${totalCostPerMeter.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3 whitespace-nowrap">{projSavingsPerMtr !== null ? `₹${projSavingsPerMtr.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3 whitespace-nowrap">{projSavings !== null ? `₹${projSavings.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
+              <TableRow key={idx} className="border-slate-700 py-2">
+                <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{row.dn_number || "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{row.dn_received_date ? new Date(row.dn_received_date).toLocaleDateString() : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{dnLength || "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{Number.isFinite(nonRefundable) ? `₹${nonRefundable.toLocaleString()}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{materialsCost ? `₹${materialsCost.toLocaleString()}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{serviceCost ? `₹${serviceCost.toLocaleString()}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{totalCost ? `₹${totalCost.toLocaleString()}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{totalCostPerMeter ? `₹${totalCostPerMeter.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{projSavingsPerMtr !== null ? `₹${projSavingsPerMtr.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{projSavings !== null ? `₹${projSavings.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
               </TableRow>
             );
           })}
           {/* Total Row */}
           <TableRow className="bg-[#1E1E2F] border-t border-neutral-700">
-            <TableCell className="font-semibold text-white text-base px-2 py-3 whitespace-nowrap" colSpan={2}>Total</TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3 whitespace-nowrap">{totalLength ? totalLength.toLocaleString() : "-"}</TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3 whitespace-nowrap">{data.length > 0 ? `₹${data.reduce((sum, row) => sum + (Number(row.actual_total_non_refundable) || 0), 0).toLocaleString()}` : "-"}</TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3 whitespace-nowrap">{data.length > 0 ? `₹${data.reduce((sum, row) => sum + ((Number(row.dn_length_mtr) || 0) * 270), 0).toLocaleString()}` : "-"}</TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3 whitespace-nowrap">{data.length > 0 ? `₹${data.reduce((sum, row) => sum + ((Number(row.dn_length_mtr) || 0) * 1100), 0).toLocaleString()}` : "-"}</TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3 whitespace-nowrap">{totalCost ? `₹${totalCost.toLocaleString()}` : "-"}</TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3 whitespace-nowrap">{totalLength > 0 ? `₹${(totalCost / totalLength).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}</TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3 whitespace-nowrap">{weightedAvgSavingsPerMeter !== null ? `₹${weightedAvgSavingsPerMeter.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3 whitespace-nowrap">{totalSavings !== null ? `₹${totalSavings.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
+            <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }} colSpan={2}>Total</TableCell>
+            <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{totalLength ? totalLength.toLocaleString() : "-"}</TableCell>
+            <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{data.length > 0 ? `₹${data.reduce((sum, row) => sum + (Number(row.actual_total_non_refundable) || 0), 0).toLocaleString()}` : "-"}</TableCell>
+            <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{data.length > 0 ? `₹${data.reduce((sum, row) => sum + ((Number(row.dn_length_mtr) || 0) * 270), 0).toLocaleString()}` : "-"}</TableCell>
+            <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{data.length > 0 ? `₹${data.reduce((sum, row) => sum + ((Number(row.dn_length_mtr) || 0) * 1100), 0).toLocaleString()}` : "-"}</TableCell>
+            <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{totalCost ? `₹${totalCost.toLocaleString()}` : "-"}</TableCell>
+            <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{totalLength > 0 ? `₹${(totalCost / totalLength).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}</TableCell>
+            <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{weightedAvgSavingsPerMeter !== null ? `₹${weightedAvgSavingsPerMeter.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
+            <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{totalSavings !== null ? `₹${totalSavings.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
           </TableRow>
         </TableBody>
       </Table>
-      </div>
     </>
   );
 }
@@ -125,11 +123,13 @@ function RouteOverviewProjectedSavingsCard({ budgetedCostPerMeter, actualCostPer
   }
   return (
     <div
-      className={`w-full md:w-1/2 mx-auto mt-6 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all duration-200
-        ${isPositive
-          ? "bg-gradient-to-br from-green-400 via-green-600 to-green-500 text-white"
-          : "bg-gradient-to-br from-red-400 via-red-600 to-red-500 text-white"}
-        backdrop-blur-lg border-none ring-1 ring-white/20 font-inter`}
+      className={`w-full md:w-1/2 mx-auto mt-6 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all duration-200 backdrop-blur-lg border-none ring-1 ring-white/20 font-inter`}
+      style={{
+        background: isPositive 
+          ? 'linear-gradient(to bottom right, #4ade80, #2563eb, #22c55e)' 
+          : 'linear-gradient(to bottom right, #f87171, #dc2626, #ef4444)',
+        color: 'white'
+      }}
     >
       <div className="text-base font-semibold font-inter mb-1 flex items-center gap-2 justify-center text-center">
         Projected Savings per Meter
@@ -173,11 +173,13 @@ function RouteOverviewProjectedTotalSavingsCard({ budgetedCostPerMeter, data }: 
   console.log("RouteOverviewProjectedTotalSavingsCard projectedSavings:", projectedSavings, "isPositive:", isPositive);
   return (
     <div
-      className={`w-full md:w-1/2 mx-auto mt-6 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all duration-200
-        ${isPositive
-          ? "bg-gradient-to-br from-green-400 via-green-600 to-green-500 text-white"
-          : "bg-gradient-to-br from-red-400 via-red-600 to-red-500 text-white"}
-        backdrop-blur-lg border-none ring-1 ring-white/20 font-inter`}
+      className={`w-full md:w-1/2 mx-auto mt-6 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all duration-200 backdrop-blur-lg border-none ring-1 ring-white/20 font-inter`}
+      style={{
+        background: isPositive 
+          ? 'linear-gradient(to bottom right, #4ade80, #2563eb, #22c55e)' 
+          : 'linear-gradient(to bottom right, #f87171, #dc2626, #ef4444)',
+        color: 'white'
+      }}
     >
       <div className="text-base font-semibold font-inter mb-1 flex items-center gap-2 justify-center text-center">
         Projected Savings Against Total Budget
@@ -220,7 +222,14 @@ export default function RouteOverview() {
   const handlePrint = useReactToPrint({
     contentRef: reportRef,
     documentTitle: `Route_Report_${lockedRoute}`,
-    pageStyle: `@media print { body { -webkit-print-color-adjust: exact; } .no-print { display: none !important; } .print-report-root { background: white !important; color: #222 !important; } }`,
+    pageStyle: `@media print { 
+      body { -webkit-print-color-adjust: exact; } 
+      .no-print { display: none !important; } 
+      .print-report-root { background: white !important; color: #222 !important; }
+      /* Preserve savings card colors in PDF */
+      * { -webkit-print-color-adjust: exact !important; }
+      div[style*="background"] { -webkit-print-color-adjust: exact !important; }
+    }`,
   });
 
   useEffect(() => {
@@ -935,12 +944,12 @@ export default function RouteOverview() {
   .pre-analysis-table td,
   .current-analysis-table td,
   .post-analysis-table td {
-    max-width: none !important;
+    max-width: 120px !important;
     width: auto !important;
     font-size: 0.95em !important;
-    white-space: nowrap !important;
-    overflow-wrap: normal !important;
-    word-break: normal !important;
+    white-space: normal !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
     overflow: visible !important;
     text-overflow: unset !important;
     padding: 6px 6px !important;
@@ -952,16 +961,16 @@ export default function RouteOverview() {
   .current-analysis-table tr:last-child td,
   .post-analysis-table tr:last-child td {
     font-weight: 900 !important;
-    font-size: 14px !important;
+    font-size: 8px !important;
     color: #fff !important;
     background: #181e2b !important;
-    max-width: none !important;
+    max-width: 80px !important;
     width: auto !important;
-    white-space: nowrap !important;
-    word-break: normal !important;
+    white-space: normal !important;
+    word-break: break-word !important;
     overflow: visible !important;
     text-overflow: unset !important;
-    padding: 6px 6px !important;
+    padding: 4px 4px !important;
     text-align: center !important;
     margin: 0 !important;
   }

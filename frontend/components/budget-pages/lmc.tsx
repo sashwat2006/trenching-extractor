@@ -806,7 +806,7 @@ export default function LmcPage() {
                               data={priorDns} 
                               budgetedCostPerMeter={budgetedCostPerMeter}
                             />
-                            <div className="flex flex-col md:flex-row gap-6 mt-6 items-stretch justify-center">
+                            <div className="flex flex-col md:flex-row gap-6 mt-6 items-stretch justify-center print:break-inside-avoid print:page-break-inside-avoid">
                               <ProjectedSavingsCard 
                                 budgetedCostPerMeter={budgetedCostPerMeter}
                                 actualCostPerMeter={(function(){
@@ -859,7 +859,7 @@ export default function LmcPage() {
                             data={currentDns} 
                             budgetedCostPerMeter={budgetedCostPerMeter}
                           />
-                          <div className="flex flex-col md:flex-row gap-6 mt-6 items-stretch justify-center">
+                          <div className="flex flex-col md:flex-row gap-6 mt-6 items-stretch justify-center print:break-inside-avoid print:page-break-inside-avoid">
                             <ProjectedSavingsCard 
                               budgetedCostPerMeter={budgetedCostPerMeter}
                               actualCostPerMeter={(function(){
@@ -911,7 +911,7 @@ export default function LmcPage() {
                             data={existingDns} 
                             budgetedCostPerMeter={budgetedCostPerMeter}
                           />
-                          <div className="flex flex-col md:flex-row gap-6 mt-6 items-stretch justify-center">
+                          <div className="flex flex-col md:flex-row gap-6 mt-6 items-stretch justify-center print:break-inside-avoid print:page-break-inside-avoid">
                             <ProjectedSavingsCard 
                               budgetedCostPerMeter={budgetedCostPerMeter}
                               actualCostPerMeter={(function(){
@@ -1133,7 +1133,7 @@ function SupabaseQueryTable({ confirmedSiteId, isRoute, surveyIds, onBudgetedCos
             <TableHeader>
               <TableRow className="border-slate-600">
                 {displayColumns.map((col) => (
-                  <TableHead key={col} className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-base">{col}</TableHead>
+                  <TableHead key={col} className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-sm print:text-sm">{col}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
@@ -1150,14 +1150,14 @@ function SupabaseQueryTable({ confirmedSiteId, isRoute, surveyIds, onBudgetedCos
                   const totalCostPerMeter = surveyedLength > 0 ? (totalCost / surveyedLength) : 0;
 
                   return (
-                    <TableRow key={idx} className="border-slate-700 py-3">
-                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{siteId}</TableCell>
-                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{surveyedLength ? surveyedLength.toLocaleString() : "-"}</TableCell>
-                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{riCost ? `₹${riCost.toLocaleString()}` : "-"}</TableCell>
-                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{materialCost ? `₹${materialCost.toLocaleString()}` : "-"}</TableCell>
-                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{serviceCost ? `₹${serviceCost.toLocaleString()}` : "-"}</TableCell>
-                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{totalCost ? `₹${totalCost.toLocaleString()}` : "-"}</TableCell>
-                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{totalCostPerMeter ? `₹${totalCostPerMeter.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}</TableCell>
+                    <TableRow key={idx} className="border-slate-700 py-2">
+                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-2 text-center print:text-sm">{siteId}</TableCell>
+                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-2 text-center print:text-sm">{surveyedLength ? surveyedLength.toLocaleString() : "-"}</TableCell>
+                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-2 text-center print:text-sm">{riCost ? `₹${riCost.toLocaleString()}` : "-"}</TableCell>
+                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-2 text-center print:text-sm">{materialCost ? `₹${materialCost.toLocaleString()}` : "-"}</TableCell>
+                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-2 text-center print:text-sm">{serviceCost ? `₹${serviceCost.toLocaleString()}` : "-"}</TableCell>
+                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-2 text-center print:text-sm">{totalCost ? `₹${totalCost.toLocaleString()}` : "-"}</TableCell>
+                      <TableCell className="text-slate-200 font-sans text-sm px-2 py-2 text-center print:text-sm">{totalCostPerMeter ? `₹${totalCostPerMeter.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}</TableCell>
                     </TableRow>
                   );
                 })}
@@ -1177,7 +1177,7 @@ function ProjectedSavingsCard({ budgetedCostPerMeter, actualCostPerMeter }: { bu
   const isPositive = savings >= 0
   return (
     <div
-      className={`w-full md:w-1/2 mx-auto mt-6 rounded-xl p-4 flex flex-col items-center transition-all duration-200
+      className={`w-full md:w-1/2 mx-auto mt-6 rounded-xl p-4 flex flex-col items-center transition-all duration-200 print:break-inside-avoid print:page-break-inside-avoid
         ${isPositive
           ? "bg-gradient-to-br from-green-400 via-green-600 to-green-500 text-white"
           : "bg-gradient-to-br from-red-400 via-red-600 to-red-500 text-white"}
@@ -1206,9 +1206,10 @@ function ProjectedTotalSavingsCard({ totalBudget, budgetedTotal, actualTotal }: 
   console.log("ProjectedTotalSavingsCard totalBudget:", totalBudget, budgetedTotal, actualTotal);
   if (typeof totalBudget !== "number" || isNaN(totalBudget)) return null;
   const isPositive = totalBudget >= 0;
+  console.log("ProjectedTotalSavingsCard isPositive:", isPositive);
   return (
     <div
-      className={`w-full md:w-1/2 mx-auto mt-6 rounded-xl p-4 flex flex-col items-center transition-all duration-200
+      className={`w-full md:w-1/2 mx-auto mt-6 rounded-xl p-4 flex flex-col items-center transition-all duration-200 print:break-inside-avoid print:page-break-inside-avoid
         ${isPositive
           ? "bg-gradient-to-br from-green-400 via-green-600 to-green-500 text-white"
           : "bg-gradient-to-br from-red-400 via-red-600 to-red-500 text-white"}
@@ -1261,16 +1262,16 @@ function AnalysisTableWithPopups({ data, budgetedCostPerMeter }: { data: any[], 
       <Table className="w-full text-left max-w-none">
         <TableHeader>
           <TableRow className="border-slate-600">
-            <TableHead className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-base">DN Number</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-base">DN Date</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-base">Length (m)</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-base">Non-Refundable</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-base">Materials</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-base">Service</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-base">Total Cost</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-base">Total Cost/Meter</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-base">Proj. Savings/Meter</TableHead>
-            <TableHead className="text-slate-300 font-sans font-medium text-center px-2 py-2 text-base">Proj. Savings</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium text-center px-0.5 py-1 text-xs print:text-xs">DN No.</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium text-center px-0.5 py-1 text-xs print:text-xs">DN Date</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium text-center px-0.5 py-1 text-xs print:text-xs">Length</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium text-center px-0.5 py-1 text-xs print:text-xs">RI Cost</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium text-center px-0.5 py-1 text-xs print:text-xs">Materials</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium text-center px-0.5 py-1 text-xs print:text-xs">Service</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium text-center px-0.5 py-1 text-xs print:text-xs">Total Cost</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium text-center px-0.5 py-1 text-xs print:text-xs">Total Cost/Mtr</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium text-center px-0.5 py-1 text-xs print:text-xs">Proj. Savings/Mtr</TableHead>
+            <TableHead className="text-slate-300 font-sans font-medium text-center px-0.5 py-1 text-xs print:text-xs">Proj. Savings</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -1288,43 +1289,43 @@ function AnalysisTableWithPopups({ data, budgetedCostPerMeter }: { data: any[], 
             const projSavings = (typeof rowBudgetedTotal === 'number' && typeof rowTotalCost === 'number') ? rowBudgetedTotal - rowTotalCost : null;
 
             return (
-              <TableRow key={idx} className="border-slate-700 py-3">
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{row.dn_number || "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{row.dn_received_date ? new Date(row.dn_received_date).toLocaleDateString() : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{dnLength || "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{Number.isFinite(nonRefundable) ? `₹${nonRefundable.toLocaleString()}` : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{materialsCost ? `₹${materialsCost.toLocaleString()}` : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{serviceCost ? `₹${serviceCost.toLocaleString()}` : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{rowTotalCost ? `₹${rowTotalCost.toLocaleString()}` : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{totalCostPerMeter ? `₹${totalCostPerMeter.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{projSavingsPerMtr !== null ? `₹${projSavingsPerMtr.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
-                <TableCell className="text-slate-200 font-sans text-sm px-2 py-3">{projSavings !== null ? `₹${projSavings.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
+              <TableRow key={idx} className="border-slate-700 py-1">
+                <TableCell className="text-slate-200 font-sans text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">{row.dn_number || "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">{row.dn_received_date ? new Date(row.dn_received_date).toLocaleDateString() : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">{dnLength || "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">{Number.isFinite(nonRefundable) ? `₹${nonRefundable.toLocaleString()}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">{materialsCost ? `₹${materialsCost.toLocaleString()}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">{serviceCost ? `₹${serviceCost.toLocaleString()}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">{rowTotalCost ? `₹${rowTotalCost.toLocaleString()}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">{totalCostPerMeter ? `₹${totalCostPerMeter.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">{projSavingsPerMtr !== null ? `₹${projSavingsPerMtr.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
+                <TableCell className="text-slate-200 font-sans text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">{projSavings !== null ? `₹${projSavings.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
               </TableRow>
             );
           })}
           {/* Total Row */}
           <TableRow className="bg-[#1E1E2F] border-t border-neutral-700">
-            <TableCell className="font-semibold text-white text-base px-2 py-3" colSpan={2}>Total</TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3">{totalLength ? totalLength.toLocaleString() : "-"}</TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3">
+            <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs" colSpan={2}>Total</TableCell>
+            <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">{totalLength ? totalLength.toLocaleString() : "-"}</TableCell>
+            <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">
               {data.length > 0 ? `₹${data.reduce((sum: number, row: any) => sum + (Number(row.actual_total_non_refundable) || 0), 0).toLocaleString()}` : "-"}
             </TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3">
+            <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">
               {data.length > 0 ? `₹${data.reduce((sum: number, row: any) => sum + ((Number(row.dn_length_mtr) || 0) * 270), 0).toLocaleString()}` : "-"}
             </TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3">
+            <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">
               {data.length > 0 ? `₹${data.reduce((sum: number, row: any) => sum + ((Number(row.dn_length_mtr) || 0) * 1100), 0).toLocaleString()}` : "-"}
             </TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3">
+            <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">
               {totalCost ? `₹${totalCost.toLocaleString()}` : "-"}
             </TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3">
+            <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">
               {totalLength > 0 ? `₹${(totalCost / totalLength).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}
             </TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3">
+            <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">
               {typeof projectedSavingsPerMeter === 'number' ? `₹${projectedSavingsPerMeter.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}
             </TableCell>
-            <TableCell className="font-semibold text-white text-base px-2 py-3">
+            <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">
               {data.length > 0 ? `₹${data.reduce((sum: number, row: any) => {
                 const dnLength = Number(row.dn_length_mtr) || 0;
                 const nonRefundable = Number(row.actual_total_non_refundable) || 0;

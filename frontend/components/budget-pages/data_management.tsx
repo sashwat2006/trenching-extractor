@@ -622,6 +622,13 @@ export default function DnManagementSection() {
       // Prepare requests
       const poForm = new FormData();
       poForm.append("site_id", poSiteId);
+      // Add PO Number Type to the request
+      if (poNumberTypeConfirmed) {
+        poForm.append("po_number_type", poNumberTypeConfirmed);
+        console.log(`📤 Sending PO Number Type: "${poNumberTypeConfirmed}" to backend`);
+      } else {
+        console.log(`⚠️ No PO Number Type selected, backend will use fallback logic`);
+      }
       const dnAppForm = new FormData();
       dnAppForm.append("dn_application_file", dnAppFile);
       dnAppForm.append("authority", dnAuthority);
@@ -645,10 +652,21 @@ export default function DnManagementSection() {
       // Merge results into a single array with source
       const merged: any[] = [];
 
+      // Map PO fields to standard field names
       Object.entries(poRes).forEach(([k, v]) => {
-        const entry = { field: k, value: roundTo2Decimals(v, k), source: "PO" };
+        let standardFieldName = k;
+        
+        // Map PO field names to standard field names
+        if (k === 'PO No') standardFieldName = 'po_number';
+        else if (k === 'PO Length (Mtr)') standardFieldName = 'po_length';
+        else if (k === 'Category') standardFieldName = 'category_type';
+        else if (k === 'SiteID') standardFieldName = 'route_id_site_id';
+        else if (k === 'UID') standardFieldName = 'uid';
+        else if (k === 'Parent Route Name / HH') standardFieldName = 'parent_route';
+        
+        const entry = { field: standardFieldName, value: roundTo2Decimals(v, k), source: "PO" };
         merged.push(entry);
-        console.log(`  📋 PO Field: "${k}" = "${v}" (rounded: "${entry.value}")`);
+        console.log(`  📋 PO Field: "${k}" → "${standardFieldName}" = "${v}" (rounded: "${entry.value}")`);
       });
       
       // Use comprehensive field mapping for application parser

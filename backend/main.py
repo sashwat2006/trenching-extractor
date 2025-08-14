@@ -634,38 +634,60 @@ async def parse_application_file(
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/parse-po")
-async def parse_po_db(site_id: str = Form(...)):
+async def parse_po_db(site_id: str = Form(...), po_number_type: str = Form(None)):
     from supabase import create_client
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    
+    print(f"🔍 PO Parse API called with site_id: {site_id}, po_number_type: {po_number_type}")
+    
     # Query po_master for the matching row
     response = supabase.table("po_master").select("*").eq("route_id_site_id", site_id).execute()
     if not response.data or len(response.data) == 0:
         return {"error": "No matching row found in po_master."}
     row = response.data[0]
+    
+    print(f"📊 Database row found: {row}")
+    
     def clean_value(val):
         if val is None or str(val).strip() in ('', '-', 'nan', 'None'):
             return ""
         return str(val).strip()
-    # Determine route_type and normalize
-    route_type_val = clean_value(row.get('route_type', ""))
-    route_type_val_norm = route_type_val.replace(" ", "").lower()
-    # PO No logic
-    if route_type_val_norm in ["metrolm", "lmc(standalone)", "routelm"]:
-        po_no = clean_value(row.get('po_no_cobuild', ""))
-        po_length = clean_value(row.get('po_length_cobuild', ""))
-    elif route_type_val_norm == "route":
+    
+    # PO No logic - Use frontend PO Number Type selection instead of route_type
+    if po_number_type and po_number_type.lower() == "ip1":
         po_no = clean_value(row.get('po_no_ip1', ""))
         po_length = clean_value(row.get('po_length_ip1', ""))
+        print(f"🎯 Using IP1 fields: po_no_ip1='{po_no}', po_length_ip1='{po_length}'")
+    elif po_number_type and po_number_type.lower() == "co-built":
+        po_no = clean_value(row.get('po_no_cobuild', ""))
+        po_length = clean_value(row.get('po_length_cobuild', ""))
+        print(f"🎯 Using Co-Build fields: po_no_cobuild='{po_no}', po_length_cobuild='{po_length}'")
     else:
-        po_no = ""
-        po_length = ""
+        # Fallback to route_type logic if no PO Number Type provided
+        route_type_val = clean_value(row.get('route_type', ""))
+        route_type_val_norm = route_type_val.replace(" ", "").lower()
+        print(f"⚠️ No PO Number Type provided, falling back to route_type: '{route_type_val}' (normalized: '{route_type_val_norm}')")
+        if route_type_val_norm in ["metrolm", "lmc(standalone)", "routelm"]:
+            po_no = clean_value(row.get('po_no_cobuild', ""))
+            po_length = clean_value(row.get('po_length_cobuild', ""))
+            print(f"🔄 Fallback: Using Co-Build fields based on route_type")
+        elif route_type_val_norm == "route":
+            po_no = clean_value(row.get('po_no_ip1', ""))
+            po_length = clean_value(row.get('po_length_ip1', ""))
+            print(f"🔄 Fallback: Using IP1 fields based on route_type")
+        else:
+            po_no = ""
+            po_length = ""
+            print(f"❌ Fallback: Unknown route_type, setting empty PO fields")
+    
     # Category: always from 'route_type'
-    category_val = route_type_val
+    category_val = clean_value(row.get('route_type', ""))
     # UID: always from 'uid'
     uid_val = clean_value(row.get('uid', ""))
     # Parent Route Name / HH: always from 'parent_route'
     parent_route_val = clean_value(row.get('parent_route', ""))
-    return {
+    
+    result = {
         'PO No': po_no,
         'PO Length (Mtr)': po_length,
         'Category': category_val,
@@ -673,6 +695,9 @@ async def parse_po_db(site_id: str = Form(...)):
         'UID': uid_val,
         'Parent Route Name / HH': parent_route_val
     }
+    
+    print(f"📤 Returning result: {result}")
+    return result
 
 @app.post("/api/parse-dn")
 async def parse_dn_file(
