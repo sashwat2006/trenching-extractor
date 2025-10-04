@@ -614,7 +614,197 @@ export default function LmcPage() {
   const handlePrint = useReactToPrint({
     contentRef: reportRef,
     documentTitle: confirmedSiteId ? `LMC_Report_${confirmedSiteId}` : 'LMC_Report',
-    pageStyle: `@media print { body { -webkit-print-color-adjust: exact; } .no-print { display: none !important; } .print-report-root { background: white !important; color: #222 !important; } }`,
+    pageStyle: `@media print { 
+      @page { 
+        margin: 0.5in; 
+        size: A4 landscape; 
+      }
+      body { 
+        -webkit-print-color-adjust: exact; 
+        print-color-adjust: exact;
+        font-size: 12px !important;
+        line-height: 1.4 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      } 
+      .no-print { display: none !important; } 
+      .print-report-root { 
+        background: white !important; 
+        color: #000 !important; 
+        font-size: 12px !important;
+        line-height: 1.4 !important;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      /* Preserve savings card colors in PDF */
+      * { 
+        -webkit-print-color-adjust: exact !important; 
+        print-color-adjust: exact !important;
+      }
+      div[style*="background"] { 
+        -webkit-print-color-adjust: exact !important; 
+        print-color-adjust: exact !important;
+      }
+      /* Table improvements for print - readable sizes */
+      table {
+        font-size: 11px !important;
+        border-collapse: collapse !important;
+        width: 100% !important;
+        margin: 0 0 20px 0 !important;
+        padding: 0 !important;
+        table-layout: auto !important;
+      }
+      th, td {
+        padding: 8px 6px !important;
+        border: 1px solid #333 !important;
+        font-size: 11px !important;
+        line-height: 1.3 !important;
+        text-align: center !important;
+        vertical-align: middle !important;
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+      }
+      th {
+        background-color: #f0f0f0 !important;
+        font-weight: bold !important;
+        color: #000 !important;
+        font-size: 12px !important;
+        padding: 10px 6px !important;
+      }
+      td {
+        background-color: #fff !important;
+        color: #000 !important;
+      }
+      /* Headers */
+      h1, h2, h3 {
+        color: #fff !important;
+        page-break-after: avoid !important;
+        margin: 15px 0 10px 0 !important;
+      }
+      h1 { font-size: 20px !important; }
+      h2 { font-size: 18px !important; }
+      h3 { font-size: 16px !important; }
+      /* Main section titles - white text */
+      .print-report-root h1,
+      .print-report-root h2,
+      .print-report-root h3 {
+        color: #fff !important;
+        font-weight: bold !important;
+      }
+      /* Savings cards - proper sizing and colors */
+      .savings-cards-row {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 15px !important;
+        justify-content: center !important;
+        align-items: stretch !important;
+        flex-wrap: nowrap !important;
+        margin: 20px 0 !important;
+        page-break-inside: avoid !important;
+      }
+      .savings-cards-row > div {
+        max-width: 300px !important;
+        min-width: 250px !important;
+        flex: 1 1 0 !important;
+        margin: 0 !important;
+        padding: 15px !important;
+        font-size: 12px !important;
+      }
+      .savings-cards-row h3 {
+        font-size: 14px !important;
+        margin: 5px 0 !important;
+      }
+      .savings-cards-row .text-3xl {
+        font-size: 20px !important;
+      }
+      .savings-cards-row .text-xs {
+        font-size: 10px !important;
+      }
+      /* Fix savings card colors - simple green and red */
+      .savings-cards-row .bg-gradient-to-br {
+        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+        color: #fff !important;
+      }
+      .savings-cards-row .bg-gradient-to-r {
+        background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%) !important;
+        color: #fff !important;
+      }
+      /* Override any other gradient backgrounds */
+      .savings-cards-row div[style*="background"] {
+        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+        color: #fff !important;
+      }
+      /* Analysis sections - match main page dark theme */
+      .pre-analysis-table,
+      .current-analysis-table,
+      .post-analysis-table {
+        page-break-inside: avoid !important;
+        margin: 20px 0 !important;
+        padding: 15px !important;
+        background: #181f2a !important;
+        border-radius: 8px !important;
+        border: 1px solid #374151 !important;
+      }
+      /* Analysis dividers */
+      .analysis-divider {
+        height: 3px !important;
+        margin: 20px 0 !important;
+        background: #333 !important;
+      }
+      /* Section titles - white text for dark backgrounds */
+      .pre-analysis-table h3,
+      .current-analysis-table h3,
+      .post-analysis-table h3,
+      h3 {
+        font-size: 16px !important;
+        margin-bottom: 15px !important;
+        color: #fff !important;
+        font-weight: bold !important;
+      }
+      /* Target all h3 elements in the report */
+      .print-report-root h3 {
+        color: #fff !important;
+        font-weight: bold !important;
+      }
+      /* Table styling for dark theme */
+      .pre-analysis-table table,
+      .current-analysis-table table,
+      .post-analysis-table table {
+        background: #181f2a !important;
+        color: #fff !important;
+      }
+      .pre-analysis-table th,
+      .current-analysis-table th,
+      .post-analysis-table th {
+        background-color: #374151 !important;
+        color: #fff !important;
+        border-color: #4b5563 !important;
+      }
+      .pre-analysis-table td,
+      .current-analysis-table td,
+      .post-analysis-table td {
+        background-color: #181f2a !important;
+        color: #fff !important;
+        border-color: #4b5563 !important;
+      }
+      /* Total row styling */
+      .pre-analysis-table tr:last-child,
+      .current-analysis-table tr:last-child,
+      .post-analysis-table tr:last-child {
+        background-color: #1f2937 !important;
+        color: #fff !important;
+        font-weight: bold !important;
+      }
+      .pre-analysis-table tr:last-child td,
+      .current-analysis-table tr:last-child td,
+      .post-analysis-table tr:last-child td {
+        background-color: #1f2937 !important;
+        color: #fff !important;
+        font-weight: bold !important;
+      }
+    }`,
   });
 
   return (
@@ -1179,8 +1369,8 @@ function ProjectedSavingsCard({ budgetedCostPerMeter, actualCostPerMeter }: { bu
     <div
       className={`w-full md:w-1/2 mx-auto mt-6 rounded-xl p-4 flex flex-col items-center transition-all duration-200 print:break-inside-avoid print:page-break-inside-avoid
         ${isPositive
-          ? "bg-gradient-to-br from-green-400 via-green-600 to-green-500 text-white"
-          : "bg-gradient-to-br from-red-400 via-red-600 to-red-500 text-white"}
+          ? "bg-gradient-to-br from-green-500 to-green-600 text-white"
+          : "bg-gradient-to-br from-red-500 to-red-600 text-white"}
         backdrop-blur-lg border-none ring-1 ring-white/20 font-inter`}
     >
       <div className="text-base font-semibold font-inter mb-1 flex items-center gap-2">
@@ -1211,8 +1401,8 @@ function ProjectedTotalSavingsCard({ totalBudget, budgetedTotal, actualTotal }: 
     <div
       className={`w-full md:w-1/2 mx-auto mt-6 rounded-xl p-4 flex flex-col items-center transition-all duration-200 print:break-inside-avoid print:page-break-inside-avoid
         ${isPositive
-          ? "bg-gradient-to-br from-green-400 via-green-600 to-green-500 text-white"
-          : "bg-gradient-to-br from-red-400 via-red-600 to-red-500 text-white"}
+          ? "bg-gradient-to-br from-green-500 to-green-600 text-white"
+          : "bg-gradient-to-br from-red-500 to-red-600 text-white"}
         backdrop-blur-lg border-none ring-1 ring-white/20 font-inter`}
     >
       <div className="text-base font-semibold font-inter mb-1 flex items-center gap-2">
