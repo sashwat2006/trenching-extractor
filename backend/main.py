@@ -13,7 +13,7 @@ import threading
 import pandas as pd
 from datetime import datetime
 from supabase import create_client, Client
-from extract_trench_data import process_demand_note, append_row_to_excel, sanitize_filename
+#from extract_trench_data import process_demand_note, append_row_to_excel, sanitize_filename
 import re
 import time
 from openpyxl import Workbook
