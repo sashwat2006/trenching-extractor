@@ -13,6 +13,7 @@ import {
 import { ChevronDown } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { supabase } from "@/utils/supabaseClient";
+import { getMaterialCostPerMeter, getServiceCostPerMeter } from '@/lib/lmcLogic';
 import { AnalysisTableWithPopups, ProjectedSavingsCard, ProjectedTotalSavingsCard } from "../budget-pages/lmc";
 import { Loader2 } from "lucide-react";
 import {
@@ -27,21 +28,35 @@ import html2canvas from 'html2canvas';
 import { useReactToPrint } from "react-to-print";
 
 // Duplicated components for Route Overview (decoupled from lmc.tsx)
-function RouteOverviewAnalysisTable({ data, budgetedCostPerMeter, tableStyle }: { data: any[], budgetedCostPerMeter: number | null, tableStyle?: React.CSSProperties }) {
+function RouteOverviewAnalysisTable({ data, budgetedCostPerMeter, materialCostPerMeter, serviceCostPerMeter, tableStyle }: { data: any[], budgetedCostPerMeter: number | null, materialCostPerMeter: number, serviceCostPerMeter: number, tableStyle?: React.CSSProperties }) {
   if (!data || data.length === 0) {
     return <div className="text-red-400 text-sm mt-2">No DNs found for this selection.</div>;
   }
   let totalLength = 0, totalCost = 0, totalSavings = 0;
+  let totalRiCost = 0, totalMaterialsCost = 0, totalServiceCost = 0;
   data.forEach(row => {
     const dnLength = Number(row.dn_length_mtr) || 0;
     const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-    const materialsCost = dnLength * 270;
-    const serviceCost = dnLength * 1100;
+    const materialsCost = dnLength * materialCostPerMeter;
+    const serviceCost = dnLength * serviceCostPerMeter;
     const rowTotalCost = nonRefundable + materialsCost + serviceCost;
     totalLength += dnLength;
     totalCost += rowTotalCost;
+    totalRiCost += nonRefundable;
+    totalMaterialsCost += materialsCost;
+    totalServiceCost += serviceCost;
     const rowBudgetedTotal = (typeof budgetedCostPerMeter === 'number' && dnLength > 0) ? budgetedCostPerMeter * dnLength : 0;
     totalSavings += rowBudgetedTotal - rowTotalCost;
+    
+    // Debug logging
+    console.log(`[ROUTE_OVERVIEW_TABLE] Row calculation:`, {
+      dnLength,
+      materialCostPerMeter,
+      serviceCostPerMeter,
+      materialsCost,
+      serviceCost,
+      rowTotalCost
+    });
   });
   const totalCostPerMeterCurrent = totalLength > 0 ? totalCost / totalLength : null;
   const totalCostPerMeterBudget = budgetedCostPerMeter;
@@ -69,8 +84,8 @@ function RouteOverviewAnalysisTable({ data, budgetedCostPerMeter, tableStyle }: 
           {data.map((row, idx) => {
             const dnLength = Number(row.dn_length_mtr) || 0;
             const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-            const materialsCost = dnLength * 270;
-            const serviceCost = dnLength * 1100;
+            const materialsCost = dnLength * materialCostPerMeter;
+            const serviceCost = dnLength * serviceCostPerMeter;
             const totalCost = nonRefundable + materialsCost + serviceCost;
             const totalCostPerMeter = dnLength > 0 ? (totalCost / dnLength) : null;
             // Per-row savings per meter: (budgeted cost per meter - actual cost per meter for that DN)
@@ -99,9 +114,9 @@ function RouteOverviewAnalysisTable({ data, budgetedCostPerMeter, tableStyle }: 
           <TableRow className="bg-[#1E1E2F] border-t border-neutral-700">
             <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }} colSpan={2}>Total</TableCell>
             <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{totalLength ? totalLength.toLocaleString() : "-"}</TableCell>
-            <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{data.length > 0 ? `₹${data.reduce((sum, row) => sum + (Number(row.actual_total_non_refundable) || 0), 0).toLocaleString()}` : "-"}</TableCell>
-            <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{data.length > 0 ? `₹${data.reduce((sum, row) => sum + ((Number(row.dn_length_mtr) || 0) * 270), 0).toLocaleString()}` : "-"}</TableCell>
-            <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{data.length > 0 ? `₹${data.reduce((sum, row) => sum + ((Number(row.dn_length_mtr) || 0) * 1100), 0).toLocaleString()}` : "-"}</TableCell>
+            <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{totalRiCost ? `₹${totalRiCost.toLocaleString()}` : "-"}</TableCell>
+            <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{totalMaterialsCost ? `₹${totalMaterialsCost.toLocaleString()}` : "-"}</TableCell>
+            <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{totalServiceCost ? `₹${totalServiceCost.toLocaleString()}` : "-"}</TableCell>
             <TableCell className="font-semibold text-white text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{totalCost ? `₹${totalCost.toLocaleString()}` : "-"}</TableCell>
             <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{totalLength > 0 ? `₹${(totalCost / totalLength).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}</TableCell>
             <TableCell className="text-slate-200 font-sans text-sm px-1 py-2 text-center" style={{ whiteSpace: 'nowrap' }}>{weightedAvgSavingsPerMeter !== null ? `₹${weightedAvgSavingsPerMeter.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}</TableCell>
@@ -150,15 +165,15 @@ function RouteOverviewProjectedSavingsCard({ budgetedCostPerMeter, actualCostPer
   );
 }
 
-function RouteOverviewProjectedTotalSavingsCard({ budgetedCostPerMeter, data }: { budgetedCostPerMeter: number|null, data: any[] }) {
+function RouteOverviewProjectedTotalSavingsCard({ budgetedCostPerMeter, data, materialCostPerMeter, serviceCostPerMeter }: { budgetedCostPerMeter: number|null, data: any[], materialCostPerMeter: number, serviceCostPerMeter: number }) {
   if (typeof budgetedCostPerMeter !== "number" || !Array.isArray(data) || data.length === 0) return null;
   // Calculate total savings: (budgeted cost per meter * total DN length) - (sum of all DN total costs)
   let totalLength = 0, totalActualCost = 0;
   data.forEach(row => {
     const dnLength = Number(row.dn_length_mtr) || 0;
     const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-    const materialsCost = dnLength * 270;
-    const serviceCost = dnLength * 1100;
+    const materialsCost = dnLength * materialCostPerMeter;
+    const serviceCost = dnLength * serviceCostPerMeter;
     const rowTotalCost = nonRefundable + materialsCost + serviceCost;
     totalLength += dnLength;
     totalActualCost += rowTotalCost;
@@ -218,6 +233,8 @@ export default function RouteOverview() {
   const [budgetedCostPerMeter, setBudgetedCostPerMeter] = useState<number | null>(null);
   const [analysisAnimState, setAnalysisAnimState] = useState<'idle' | 'charging' | 'analyzing' | 'success'>('idle');
   const [reportGenerating, setReportGenerating] = useState(false);
+  const [materialCostPerMeter, setMaterialCostPerMeter] = useState<number>(270); // Default fallback
+  const [serviceCostPerMeter, setServiceCostPerMeter] = useState<number>(1100); // Default fallback
   const reportRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({
     contentRef: reportRef,
@@ -458,6 +475,31 @@ export default function RouteOverview() {
       console.log("[ROUTE_OVERVIEW] No analysisRows, set budgetedCostPerMeter to null");
     }
   }, [analysisRows]);
+
+  // Fetch material cost per meter when route changes
+  useEffect(() => {
+    if (lockedRoute) {
+      getMaterialCostPerMeter(lockedRoute).then(cost => {
+        setMaterialCostPerMeter(cost);
+        console.log(`[ROUTE_OVERVIEW] Set material cost per meter to: ${cost}`);
+      });
+    } else {
+      setMaterialCostPerMeter(270); // Reset to default
+    }
+  }, [lockedRoute]);
+
+  // Fetch service cost per meter when route changes
+  useEffect(() => {
+    if (lockedRoute) {
+      getServiceCostPerMeter(lockedRoute).then(cost => {
+        setServiceCostPerMeter(cost);
+        console.log(`[ROUTE_OVERVIEW] Set service cost per meter to: ${cost}`);
+        console.log(`[ROUTE_OVERVIEW] Current serviceCostPerMeter state:`, serviceCostPerMeter);
+      });
+    } else {
+      setServiceCostPerMeter(1100); // Reset to default
+    }
+  }, [lockedRoute]);
 
   const getBudgetSummary = (rows: any[]) => {
     const surveyedLength = rows.reduce((sum, row) => sum + (parseFloat(row.ce_length_mtr) || 0), 0);
@@ -818,7 +860,7 @@ export default function RouteOverview() {
                             No Budget Values have been set for this route.
                           </div>
                         )}
-                        <RouteOverviewAnalysisTable data={preDns} budgetedCostPerMeter={budgetedCostPerMeter} />
+                        <RouteOverviewAnalysisTable data={preDns} budgetedCostPerMeter={budgetedCostPerMeter} materialCostPerMeter={materialCostPerMeter} serviceCostPerMeter={serviceCostPerMeter} />
                         <div className="flex flex-col md:flex-row gap-6 mt-6 items-stretch justify-center savings-cards-row">
                           <RouteOverviewProjectedSavingsCard
                             budgetedCostPerMeter={budgetedCostPerMeter}
@@ -827,8 +869,8 @@ export default function RouteOverview() {
                               preDns.forEach(row => {
                                 const dnLength = Number(row.dn_length_mtr) || 0;
                                 const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                                const materialsCost = dnLength * 270;
-                                const serviceCost = dnLength * 1100;
+                                const materialsCost = dnLength * materialCostPerMeter;
+                                const serviceCost = dnLength * serviceCostPerMeter;
                                 const rowTotalCost = nonRefundable + materialsCost + serviceCost;
                                 totalLength += dnLength;
                                 totalCost += rowTotalCost;
@@ -839,6 +881,8 @@ export default function RouteOverview() {
                           <RouteOverviewProjectedTotalSavingsCard
                             budgetedCostPerMeter={budgetedCostPerMeter}
                             data={preDns}
+                            materialCostPerMeter={materialCostPerMeter}
+                            serviceCostPerMeter={serviceCostPerMeter}
                           />
                         </div>
                       </>
@@ -856,7 +900,7 @@ export default function RouteOverview() {
                           No Budget Values have been set for this route.
                         </div>
                       )}
-                      <RouteOverviewAnalysisTable data={currentDns} budgetedCostPerMeter={budgetedCostPerMeter} />
+                      <RouteOverviewAnalysisTable data={currentDns} budgetedCostPerMeter={budgetedCostPerMeter} materialCostPerMeter={materialCostPerMeter} serviceCostPerMeter={serviceCostPerMeter} />
                       <div className="flex flex-col md:flex-row gap-6 mt-6 items-stretch justify-center savings-cards-row">
                         <RouteOverviewProjectedSavingsCard
                           budgetedCostPerMeter={budgetedCostPerMeter}
@@ -865,8 +909,8 @@ export default function RouteOverview() {
                             currentDns.forEach(row => {
                               const dnLength = Number(row.dn_length_mtr) || 0;
                               const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                              const materialsCost = dnLength * 270;
-                              const serviceCost = dnLength * 1100;
+                              const materialsCost = dnLength * materialCostPerMeter;
+                              const serviceCost = dnLength * serviceCostPerMeter;
                               const rowTotalCost = nonRefundable + materialsCost + serviceCost;
                               totalLength += dnLength;
                               totalCost += rowTotalCost;
@@ -877,6 +921,8 @@ export default function RouteOverview() {
                         <RouteOverviewProjectedTotalSavingsCard
                           budgetedCostPerMeter={budgetedCostPerMeter}
                           data={currentDns}
+                          materialCostPerMeter={materialCostPerMeter}
+                          serviceCostPerMeter={serviceCostPerMeter}
                         />
                       </div>
                     </div>
@@ -893,7 +939,7 @@ export default function RouteOverview() {
                           No Budget Values have been set for this route.
                         </div>
                       )}
-                      <RouteOverviewAnalysisTable data={postDns} budgetedCostPerMeter={budgetedCostPerMeter} />
+                      <RouteOverviewAnalysisTable data={postDns} budgetedCostPerMeter={budgetedCostPerMeter} materialCostPerMeter={materialCostPerMeter} serviceCostPerMeter={serviceCostPerMeter} />
                       <div className="flex flex-col md:flex-row gap-6 mt-6 items-stretch justify-center savings-cards-row">
                         <RouteOverviewProjectedSavingsCard
                           budgetedCostPerMeter={budgetedCostPerMeter}
@@ -902,8 +948,8 @@ export default function RouteOverview() {
                             postDns.forEach(row => {
                               const dnLength = Number(row.dn_length_mtr) || 0;
                               const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                              const materialsCost = dnLength * 270;
-                              const serviceCost = dnLength * 1100;
+                              const materialsCost = dnLength * materialCostPerMeter;
+                              const serviceCost = dnLength * serviceCostPerMeter;
                               const rowTotalCost = nonRefundable + materialsCost + serviceCost;
                               totalLength += dnLength;
                               totalCost += rowTotalCost;
@@ -914,6 +960,8 @@ export default function RouteOverview() {
                         <RouteOverviewProjectedTotalSavingsCard
                           budgetedCostPerMeter={budgetedCostPerMeter}
                           data={postDns}
+                          materialCostPerMeter={materialCostPerMeter}
+                          serviceCostPerMeter={serviceCostPerMeter}
                         />
                       </div>
                     </div>
@@ -933,8 +981,8 @@ export default function RouteOverview() {
                   const totalCostPost = postDns && postDns.length > 0 ? postDns.reduce((sum, row) => {
                     const dnLength = Number(row.dn_length_mtr) || 0;
                     const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                    const materialsCost = dnLength * 270;
-                    const serviceCost = dnLength * 1100;
+                    const materialsCost = dnLength * materialCostPerMeter;
+                    const serviceCost = dnLength * serviceCostPerMeter;
                     return sum + (nonRefundable + materialsCost + serviceCost);
                   }, 0) : 0;
                   const remainingRouteLength = surveyedLength - postDnLength;
@@ -969,7 +1017,7 @@ export default function RouteOverview() {
                   <div className="w-full flex items-center justify-center mt-12 s-curve-chart-section" style={{ breakInside: 'avoid', pageBreakInside: 'avoid', background: '#181e2b', borderRadius: 16, padding: 24, margin: '32px 0' }}>
                     <div className="nivo-cumulative-line-chart" style={{ width: '100%', height: 600, background: '#181e2b', borderRadius: 16, padding: 24, breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                       <h2 className="text-white text-xl font-bold mb-4">S Chart (Budget vs Actuals)</h2>
-                      <NivoCumulativeLineChart budgetSummary={getBudgetSummary(analysisRows)} postDns={postDns} />
+                      <NivoCumulativeLineChart budgetSummary={getBudgetSummary(analysisRows)} postDns={postDns} materialCostPerMeter={materialCostPerMeter} serviceCostPerMeter={serviceCostPerMeter} />
                     </div>
                   </div>
                 )}
@@ -1380,7 +1428,7 @@ export default function RouteOverview() {
   );
 }
 
-function NivoCumulativeLineChart({ budgetSummary, postDns }: { budgetSummary: { surveyedLength: number, riCost: number, materialCost: number, serviceCost: number }, postDns: any[] }) {
+function NivoCumulativeLineChart({ budgetSummary, postDns, materialCostPerMeter, serviceCostPerMeter }: { budgetSummary: { surveyedLength: number, riCost: number, materialCost: number, serviceCost: number }, postDns: any[], materialCostPerMeter: number, serviceCostPerMeter: number }) {
   const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number; mouseX: number; mouseY: number } | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const surveyedLength = Number(budgetSummary?.surveyedLength) || 0;
@@ -1404,7 +1452,7 @@ function NivoCumulativeLineChart({ budgetSummary, postDns }: { budgetSummary: { 
   let cumCost = 0;
   const actualsData = sortedDns.map((row, idx) => {
     const dnLength = Number(row.dn_length_mtr) || 0;
-    const actualCost = (Number(row.actual_total_non_refundable) || 0) + dnLength * 270 + dnLength * 1100;
+    const actualCost = (Number(row.actual_total_non_refundable) || 0) + dnLength * materialCostPerMeter + dnLength * serviceCostPerMeter;
     cumLength += dnLength;
     cumCost += actualCost;
     return {

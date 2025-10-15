@@ -160,6 +160,40 @@ export async function queryBySiteId(siteId: string, columns: string[]) {
     .maybeSingle();
 }
 
+// Query material cost per meter by SiteID
+export async function getMaterialCostPerMeter(siteId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("budget_master")
+    .select("material_cost_per_meter")
+    .eq("route_id_site_id", siteId)
+    .maybeSingle();
+  
+  if (error || !data || data.material_cost_per_meter === null || data.material_cost_per_meter === undefined) {
+    console.log(`[MATERIAL_COST] No material_cost_per_meter found for ${siteId}, using fallback 270`);
+    return 270; // Fallback to hardcoded value
+  }
+  
+  console.log(`[MATERIAL_COST] Found material_cost_per_meter for ${siteId}: ${data.material_cost_per_meter}`);
+  return Number(data.material_cost_per_meter);
+}
+
+// Query service cost per meter by SiteID
+export async function getServiceCostPerMeter(siteId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("budget_master")
+    .select("build_cost_per_meter")
+    .eq("route_id_site_id", siteId)
+    .maybeSingle();
+  
+  if (error || !data || data.build_cost_per_meter === null || data.build_cost_per_meter === undefined) {
+    console.log(`[SERVICE_COST] No build_cost_per_meter found for ${siteId}, using fallback 1100`);
+    return 1100; // Fallback to hardcoded value
+  }
+  
+  console.log(`[SERVICE_COST] Found build_cost_per_meter for ${siteId}: ${data.build_cost_per_meter}`);
+  return Number(data.build_cost_per_meter);
+}
+
 // Query by Survey IDs (for Route)
 export async function queryBySurveyIds(surveyIds: string[], columns: string[]) {
   if (!surveyIds || surveyIds.length === 0) return { data: [], error: null };

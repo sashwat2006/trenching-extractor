@@ -28,7 +28,7 @@ import {
   Brain,
   Zap,
 } from "lucide-react"
-import { parseAndCleanExcel, uploadToSupabase, queryBySiteId, type BudgetData, queryBySurveyIds } from "@/lib/lmcLogic"
+import { parseAndCleanExcel, uploadToSupabase, queryBySiteId, type BudgetData, queryBySurveyIds, getMaterialCostPerMeter, getServiceCostPerMeter } from "@/lib/lmcLogic"
 import { authorities } from "@/constants/authorities"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import PremiumBudgetChart from "./PremiumBudgetChart"
@@ -133,6 +133,8 @@ export default function LmcPage() {
   const [analysisTriggered, setAnalysisTriggered] = useState(false)
   const [budgetedCostPerMeter, setBudgetedCostPerMeter] = useState<number | null>(null)
   const [budgetTableRow, setBudgetTableRow] = useState<any | null>(null)
+  const [materialCostPerMeter, setMaterialCostPerMeter] = useState<number>(270) // Default fallback
+  const [serviceCostPerMeter, setServiceCostPerMeter] = useState<number>(1100) // Default fallback
 
   // DN Analysis state
   const [analysisLoading, setAnalysisLoading] = useState(false)
@@ -610,6 +612,31 @@ export default function LmcPage() {
     });
   }, [analysisTriggered, confirmedSiteId, isRoute, selectedSurveyIds]);
 
+  // Fetch material cost per meter when site ID changes
+  useEffect(() => {
+    if (confirmedSiteId) {
+      getMaterialCostPerMeter(confirmedSiteId).then(cost => {
+        setMaterialCostPerMeter(cost);
+        console.log(`[LMC] Set material cost per meter to: ${cost}`);
+      });
+    } else {
+      setMaterialCostPerMeter(270); // Reset to default
+    }
+  }, [confirmedSiteId]);
+
+  // Fetch service cost per meter when site ID changes
+  useEffect(() => {
+    if (confirmedSiteId) {
+      getServiceCostPerMeter(confirmedSiteId).then(cost => {
+        setServiceCostPerMeter(cost);
+        console.log(`[LMC] Set service cost per meter to: ${cost}`);
+        console.log(`[LMC] Current serviceCostPerMeter state:`, serviceCostPerMeter);
+      });
+    } else {
+      setServiceCostPerMeter(1100); // Reset to default
+    }
+  }, [confirmedSiteId]);
+
   const reportRef = useRef<HTMLDivElement>(null);
   const handlePrint = useReactToPrint({
     contentRef: reportRef,
@@ -995,6 +1022,8 @@ export default function LmcPage() {
                             <AnalysisTableWithPopups 
                               data={priorDns} 
                               budgetedCostPerMeter={budgetedCostPerMeter}
+                              materialCostPerMeter={materialCostPerMeter}
+                              serviceCostPerMeter={serviceCostPerMeter}
                             />
                             <div className="flex flex-col md:flex-row gap-6 mt-6 items-stretch justify-center print:break-inside-avoid print:page-break-inside-avoid">
                               <ProjectedSavingsCard 
@@ -1004,8 +1033,8 @@ export default function LmcPage() {
                                   priorDns.forEach(row => {
                                     const dnLength = Number(row.dn_length_mtr) || 0;
                                     const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                                    const materialsCost = dnLength * 270;
-                                    const serviceCost = dnLength * 1100;
+                                    const materialsCost = dnLength * materialCostPerMeter;
+                                    const serviceCost = dnLength * serviceCostPerMeter;
                                     const rowTotalCost = nonRefundable + materialsCost + serviceCost;
                                     totalLength += dnLength;
                                     totalCost += rowTotalCost;
@@ -1019,8 +1048,8 @@ export default function LmcPage() {
                                   priorDns.forEach(row => {
                                     const dnLength = Number(row.dn_length_mtr) || 0;
                                     const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                                    const materialsCost = dnLength * 270;
-                                    const serviceCost = dnLength * 1100;
+                                    const materialsCost = dnLength * materialCostPerMeter;
+                                    const serviceCost = dnLength * serviceCostPerMeter;
                                     const rowTotalCost = nonRefundable + materialsCost + serviceCost;
                                     totalLength += dnLength;
                                     totalCost += rowTotalCost;
@@ -1031,8 +1060,8 @@ export default function LmcPage() {
                                 actualTotal={priorDns.reduce((sum, row) => {
                                   const dnLength = Number(row.dn_length_mtr) || 0;
                                   const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                                  const materialsCost = dnLength * 270;
-                                  const serviceCost = dnLength * 1100;
+                                  const materialsCost = dnLength * materialCostPerMeter;
+                                  const serviceCost = dnLength * serviceCostPerMeter;
                                   return sum + nonRefundable + materialsCost + serviceCost;
                                 }, 0)}
                               />
@@ -1048,6 +1077,8 @@ export default function LmcPage() {
                           <AnalysisTableWithPopups 
                             data={currentDns} 
                             budgetedCostPerMeter={budgetedCostPerMeter}
+                            materialCostPerMeter={materialCostPerMeter}
+                            serviceCostPerMeter={serviceCostPerMeter}
                           />
                           <div className="flex flex-col md:flex-row gap-6 mt-6 items-stretch justify-center print:break-inside-avoid print:page-break-inside-avoid">
                             <ProjectedSavingsCard 
@@ -1057,8 +1088,8 @@ export default function LmcPage() {
                                 currentDns.forEach(row => {
                                   const dnLength = Number(row.dn_length_mtr) || 0;
                                   const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                                  const materialsCost = dnLength * 270;
-                                  const serviceCost = dnLength * 1100;
+                                  const materialsCost = dnLength * materialCostPerMeter;
+                                  const serviceCost = dnLength * serviceCostPerMeter;
                                   const rowTotalCost = nonRefundable + materialsCost + serviceCost;
                                   totalLength += dnLength;
                                   totalCost += rowTotalCost;
@@ -1072,8 +1103,8 @@ export default function LmcPage() {
                                 currentDns.forEach(row => {
                                   const dnLength = Number(row.dn_length_mtr) || 0;
                                   const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                                  const materialsCost = dnLength * 270;
-                                  const serviceCost = dnLength * 1100;
+                                  const materialsCost = dnLength * materialCostPerMeter;
+                                  const serviceCost = dnLength * serviceCostPerMeter;
                                   const rowTotalCost = nonRefundable + materialsCost + serviceCost;
                                   totalLength += dnLength;
                                   totalCost += rowTotalCost;
@@ -1084,8 +1115,8 @@ export default function LmcPage() {
                               actualTotal={currentDns.reduce((sum, row) => {
                                 const dnLength = Number(row.dn_length_mtr) || 0;
                                 const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                                const materialsCost = dnLength * 270;
-                                const serviceCost = dnLength * 1100;
+                                const materialsCost = dnLength * materialCostPerMeter;
+                                const serviceCost = dnLength * serviceCostPerMeter;
                                 return sum + nonRefundable + materialsCost + serviceCost;
                               }, 0)}
                             />
@@ -1100,6 +1131,8 @@ export default function LmcPage() {
                           <AnalysisTableWithPopups 
                             data={existingDns} 
                             budgetedCostPerMeter={budgetedCostPerMeter}
+                            materialCostPerMeter={materialCostPerMeter}
+                            serviceCostPerMeter={serviceCostPerMeter}
                           />
                           <div className="flex flex-col md:flex-row gap-6 mt-6 items-stretch justify-center print:break-inside-avoid print:page-break-inside-avoid">
                             <ProjectedSavingsCard 
@@ -1109,8 +1142,8 @@ export default function LmcPage() {
                                 existingDns.forEach(row => {
                                   const dnLength = Number(row.dn_length_mtr) || 0;
                                   const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                                  const materialsCost = dnLength * 270;
-                                  const serviceCost = dnLength * 1100;
+                                  const materialsCost = dnLength * materialCostPerMeter;
+                                  const serviceCost = dnLength * serviceCostPerMeter;
                                   const rowTotalCost = nonRefundable + materialsCost + serviceCost;
                                   totalLength += dnLength;
                                   totalCost += rowTotalCost;
@@ -1124,8 +1157,8 @@ export default function LmcPage() {
                                 existingDns.forEach(row => {
                                   const dnLength = Number(row.dn_length_mtr) || 0;
                                   const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                                  const materialsCost = dnLength * 270;
-                                  const serviceCost = dnLength * 1100;
+                                  const materialsCost = dnLength * materialCostPerMeter;
+                                  const serviceCost = dnLength * serviceCostPerMeter;
                                   const rowTotalCost = nonRefundable + materialsCost + serviceCost;
                                   totalLength += dnLength;
                                   totalCost += rowTotalCost;
@@ -1136,8 +1169,8 @@ export default function LmcPage() {
                               actualTotal={existingDns.reduce((sum, row) => {
                                 const dnLength = Number(row.dn_length_mtr) || 0;
                                 const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                                const materialsCost = dnLength * 270;
-                                const serviceCost = dnLength * 1100;
+                                const materialsCost = dnLength * materialCostPerMeter;
+                                const serviceCost = dnLength * serviceCostPerMeter;
                                 return sum + nonRefundable + materialsCost + serviceCost;
                               }, 0)}
                             />
@@ -1424,21 +1457,35 @@ function ProjectedTotalSavingsCard({ totalBudget, budgetedTotal, actualTotal }: 
 }
 
 // Reusable analysis table with popups
-function AnalysisTableWithPopups({ data, budgetedCostPerMeter }: { data: any[], budgetedCostPerMeter: number | null }) {
+function AnalysisTableWithPopups({ data, budgetedCostPerMeter, materialCostPerMeter, serviceCostPerMeter }: { data: any[], budgetedCostPerMeter: number | null, materialCostPerMeter: number, serviceCostPerMeter: number }) {
   if (!data || data.length === 0) {
     return <div className="text-red-400 text-sm mt-2">No DNs found for this selection.</div>;
   }
 
   // Calculate totals
   let totalLength = 0, totalCost = 0;
+  let totalRiCost = 0, totalMaterialsCost = 0, totalServiceCost = 0;
   data.forEach((row: any) => {
     const dnLength = Number(row.dn_length_mtr) || 0;
     const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-    const materialsCost = dnLength * 270;
-    const serviceCost = dnLength * 1100;
+    const materialsCost = dnLength * materialCostPerMeter;
+    const serviceCost = dnLength * serviceCostPerMeter;
     const rowTotalCost = nonRefundable + materialsCost + serviceCost;
     totalLength += dnLength;
     totalCost += rowTotalCost;
+    totalRiCost += nonRefundable;
+    totalMaterialsCost += materialsCost;
+    totalServiceCost += serviceCost;
+    
+    // Debug logging
+    console.log(`[LMC_TABLE] Row calculation:`, {
+      dnLength,
+      materialCostPerMeter,
+      serviceCostPerMeter,
+      materialsCost,
+      serviceCost,
+      rowTotalCost
+    });
   });
 
   // Weighted average for projected savings per meter
@@ -1468,8 +1515,8 @@ function AnalysisTableWithPopups({ data, budgetedCostPerMeter }: { data: any[], 
           {data.map((row: any, idx: number) => {
             const dnLength = Number(row.dn_length_mtr) || 0;
             const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-            const materialsCost = dnLength * 270;
-            const serviceCost = dnLength * 1100;
+            const materialsCost = dnLength * materialCostPerMeter;
+            const serviceCost = dnLength * serviceCostPerMeter;
             const rowTotalCost = nonRefundable + materialsCost + serviceCost;
             const totalCostPerMeter = dnLength > 0 ? (rowTotalCost / dnLength) : null;
             const projSavingsPerMtr = (typeof budgetedCostPerMeter === 'number' && typeof totalCostPerMeter === 'number')
@@ -1498,13 +1545,13 @@ function AnalysisTableWithPopups({ data, budgetedCostPerMeter }: { data: any[], 
             <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs" colSpan={2}>Total</TableCell>
             <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">{totalLength ? totalLength.toLocaleString() : "-"}</TableCell>
             <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">
-              {data.length > 0 ? `₹${data.reduce((sum: number, row: any) => sum + (Number(row.actual_total_non_refundable) || 0), 0).toLocaleString()}` : "-"}
+              {totalRiCost ? `₹${totalRiCost.toLocaleString()}` : "-"}
             </TableCell>
             <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">
-              {data.length > 0 ? `₹${data.reduce((sum: number, row: any) => sum + ((Number(row.dn_length_mtr) || 0) * 270), 0).toLocaleString()}` : "-"}
+              {totalMaterialsCost ? `₹${totalMaterialsCost.toLocaleString()}` : "-"}
             </TableCell>
             <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">
-              {data.length > 0 ? `₹${data.reduce((sum: number, row: any) => sum + ((Number(row.dn_length_mtr) || 0) * 1100), 0).toLocaleString()}` : "-"}
+              {totalServiceCost ? `₹${totalServiceCost.toLocaleString()}` : "-"}
             </TableCell>
             <TableCell className="font-semibold text-white text-xs px-0.5 py-1 whitespace-nowrap text-center print:text-xs">
               {totalCost ? `₹${totalCost.toLocaleString()}` : "-"}
@@ -1519,8 +1566,8 @@ function AnalysisTableWithPopups({ data, budgetedCostPerMeter }: { data: any[], 
               {data.length > 0 ? `₹${data.reduce((sum: number, row: any) => {
                 const dnLength = Number(row.dn_length_mtr) || 0;
                 const nonRefundable = Number(row.actual_total_non_refundable) || 0;
-                const materialsCost = dnLength * 270;
-                const serviceCost = dnLength * 1100;
+                const materialsCost = dnLength * materialCostPerMeter;
+                const serviceCost = dnLength * serviceCostPerMeter;
                 const totalCost = nonRefundable + materialsCost + serviceCost;
                 const totalCostPerMeter = dnLength > 0 ? (totalCost / dnLength) : null;
                 const projSavingsPerMtr = (typeof budgetedCostPerMeter === 'number' && typeof totalCostPerMeter === 'number')
